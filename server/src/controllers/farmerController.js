@@ -1,0 +1,978 @@
+import { pool } from '../config/database.js';
+
+// Detect if a column exists on a table in the current database
+async function columnExists(tableName, columnName) {
+  const [rows] = await pool.query(
+    `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1`,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
+
+// Get comprehensive farmer dashboard metrics
+export const getFarmerMetrics = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+
+    // Get active listings count
+    let listingsCount = 0;
+    try {
+      const hasNewSchema = await columnExists('produce_listings', 'farmer_user_id');
+      const query = hasNewSchema
+        ? "SELECT COUNT(*) as count FROM produce_listings pl JOIN users u ON pl.farmer_user_id = u.id WHERE u.firebase_uid = ? AND pl.status = 'active'"
+        : "SELECT COUNT(*) as count FROM produce_listings pl JOIN users u ON pl.farmer_id = u.id WHERE u.firebase_uid = ? AND pl.status = 'active'";
+      const [r] = await pool.query(query, [farmerId]);
+      listingsCount = r[0]?.count || 0;
+    } catch (_) {}
+
+    // Get pending orders count
+    let pendingOrders = 0;
+    try {
+      const [r] = await pool.query(
+        "SELECT COUNT(*) as count FROM orders o JOIN users u ON o.farmer_user_id = u.id WHERE u.firebase_uid = ? AND o.status = 'pending'",
+        [farmerId]
+      );
+      pendingOrders = r[0]?.count || 0;
+    } catch (_) {}
+
+    // Get weekly earnings (last 7 days)
+    let earningsTotal = 0;
+    try {
+      const [r] = await pool.query(
+        "SELECT COALESCE(SUM(o.total), 0) as total FROM orders o JOIN users u ON o.farmer_user_id = u.id WHERE u.firebase_uid = ? AND o.status = 'completed' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
+        [farmerId]
+      );
+      earningsTotal = r[0]?.total || 0;
+    } catch (_) {}
+
+    // Get total reviews count (if you have a reviews table)
+    let reviewsCount = 0;
+    try {
+      const [r] = await pool.query(
+        "SELECT COUNT(*) as count FROM notifications n JOIN users u ON n.user_id = u.id WHERE u.firebase_uid = ? AND n.type = 'review'",
+        [farmerId]
+      );
+      reviewsCount = r[0]?.count || 0;
+    } catch (_) {}
+
+    // Calculate trends (compare with previous week)
+    let previousEarningsTotal = 0;
+    try {
+      const [r] = await pool.query(
+        "SELECT COALESCE(SUM(o.total), 0) as total FROM orders o JOIN users u ON o.farmer_user_id = u.id WHERE u.firebase_uid = ? AND o.status = 'completed' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND o.created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)",
+        [farmerId]
+      );
+      previousEarningsTotal = r[0]?.total || 0;
+    } catch (_) {}
+
+    const currentEarnings = earningsTotal;
+    const previousEarnings = previousEarningsTotal;
+    const earningsTrend = previousEarnings > 0 ? ((currentEarnings - previousEarnings) / previousEarnings) * 100 : 0;
+
+    const metrics = [
+      {
+        title: "Active Listings",
+        titleAm: "ንቁ ዝርዝሮች",
+        value: listingsCount,
+        icon: "Package",
+        trend: "up",
+        trendValue: 8.5
+      },
+      {
+        title: "Pending Orders",
+        titleAm: "በመጠባበቅ ላይ ያሉ ትዕዛዞች",
+        value: pendingOrders,
+        icon: "ShoppingBag",
+        trend: "up",
+        trendValue: 12.3
+      },
+      {
+        title: "Weekly Earnings",
+        titleAm: "ሳምንታዊ ገቢ",
+        value: currentEarnings,
+        icon: "TrendingUp",
+        currency: true,
+        trend: earningsTrend > 0 ? "up" : "down",
+        trendValue: Math.abs(earningsTrend)
+      },
+      {
+        title: "Total Reviews",
+        titleAm: "ጠቅላላ ግምገማዎች",
+        value: reviewsCount,
+        icon: "Star",
+        trend: "up",
+        trendValue: 4.2
+      }
+    ];
+
+    res.json(metrics);
+  } catch (error) {
+    console.error("Error fetching farmer metrics:", error);
+    res.status(500).json({ error: "Failed to fetch metrics" });
+  }
+};
+
+// Get farmer's active produce listings
+export const getFarmerListings = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+    const limit = parseInt(req.query.limit) || 10;
+    const status = req.query.status; // Filter by status
+
+    // Choose query based on available columns (support legacy and new schemas)
+    const hasNewFarmerCol = await columnExists('produce_listings', 'farmer_user_id');
+    const hasTitleCol = await columnExists('produce_listings', 'title');
+    const hasPricePerUnit = await columnExists('produce_listings', 'price_per_unit');
+
+    // Build WHERE clause with status filter
+    let whereClause = "WHERE u.firebase_uid = ?";
+    const params = [farmerId];
+    
+    if (status) {
+      whereClause += " AND pl.status = ?";
+      params.push(status);
+    }
+    
+    params.push(limit);
+
+    const query = hasNewFarmerCol && hasTitleCol && hasPricePerUnit
+      ? `SELECT
+          pl.id,
+          pl.title as name,
+          pl.crop as category,
+          pl.price_per_unit as pricePerUnit,
+          pl.quantity as quantity,
+          pl.unit,
+          pl.region,
+          pl.woreda,
+          pl.description,
+          pl.status,
+          pl.created_at,
+          li.url as image
+        FROM produce_listings pl
+        JOIN users u ON pl.farmer_user_id = u.id
+        LEFT JOIN listing_images li ON li.listing_id = pl.id AND li.sort_order = 0
+        ${whereClause}
+        ORDER BY pl.created_at DESC
+        LIMIT ?`
+      : `SELECT
+          pl.id,
+          pl.name,
+          pl.name_am,
+          pl.category,
+          pl.price_per_kg as pricePerUnit,
+          pl.available_quantity as quantity,
+          pl.unit,
+          pl.location as region,
+          pl.description,
+          pl.status,
+          pl.created_at,
+          pl.image_url as image
+        FROM produce_listings pl
+        JOIN users u ON pl.farmer_id = u.id
+        ${whereClause}
+        ORDER BY pl.created_at DESC
+        LIMIT ?`;
+
+    const [listings] = await pool.query(query, params);
+
+    // Transform data to match frontend expectations
+    const statusMapOut = {
+      sold: 'sold_out',
+      paused: 'inactive',
+      active: 'active',
+      expired: 'inactive',
+      draft: 'draft',
+      inactive: 'inactive'
+    };
+    const transformedListings = listings.map(listing => ({
+      id: listing.id,
+      name: listing.name || listing.title,
+      nameAm: listing.name_am || null,
+      image: listing.image || "https://images.pexels.com/photos/4110404/pexels-photo-4110404.jpeg",
+      pricePerKg: listing.pricePerUnit,
+      availableQuantity: listing.quantity,
+      location: listing.woreda ? `${listing.region}, ${listing.woreda}` : (listing.region || listing.location),
+      status: statusMapOut[listing.status] || listing.status,
+      createdAt: listing.created_at,
+      category: listing.category || listing.crop,
+      unit: listing.unit,
+      currency: 'ETB'
+    }));
+
+    res.json({ listings: transformedListings });
+  } catch (error) {
+    console.error("Error fetching farmer listings:", error);
+    res.status(500).json({ error: "Failed to fetch listings" });
+  }
+};
+
+// Get farmer's orders with status filtering
+export const getFarmerOrders = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+    const status = req.query.status; // optional filter by status
+
+    let query = `
+      SELECT
+        o.id,
+        o.total_amount,
+        o.status,
+        o.created_at,
+        o.notes,
+        u.full_name as buyer_name,
+        u.phone as buyer_phone,
+        u.region as buyer_region
+      FROM orders o
+      JOIN users u ON o.buyer_id = u.id
+      JOIN users f ON o.farmer_id = f.id
+      WHERE f.firebase_uid = ?
+    `;
+
+    const params = [farmerId];
+
+    if (status) {
+      query += " AND o.status = ?";
+      params.push(status);
+    }
+
+    query += " ORDER BY o.created_at DESC LIMIT 20";
+
+    const [orders] = await pool.query(query, params);
+
+    res.json(orders);
+  } catch (error) {
+    console.error("Error fetching farmer orders:", error);
+    res.status(500).json({ error: "Failed to fetch orders" });
+  }
+};
+
+// Get recent activity feed for farmer
+export const getFarmerRecentActivity = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Get recent orders only (skip reviews for now since table doesn't exist)
+    const [activities] = await pool.query(
+      `SELECT
+        'order' as type,
+        o.created_at as timestamp,
+        CONCAT('New order received from ', u.full_name) as message,
+        CONCAT('አዲስ ትዕዛዝ ከ', u.full_name, ' ደርሷል') as message_am,
+        o.id as reference_id
+      FROM orders o
+      JOIN users u ON o.buyer_user_id = u.id
+      JOIN users f ON o.farmer_user_id = f.id
+      WHERE f.firebase_uid = ?
+      ORDER BY o.created_at DESC
+      LIMIT ?`,
+      [farmerId, limit]
+    );
+
+    res.json(activities);
+  } catch (error) {
+    console.error("Error fetching farmer activity:", error);
+    res.status(500).json({ error: "Failed to fetch activity" });
+  }
+};
+
+// Create new produce listing for farmer
+export const createFarmerListing = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+    const {
+      name,
+      nameAm,
+      description,
+      descriptionAm,
+      category,
+      pricePerKg,
+      availableQuantity,
+      location,
+      image,
+      status = 'active' // Default to active, can be 'draft'
+    } = req.body;
+
+    // Debug logging
+    console.log('Creating farmer listing with data:', {
+      farmerId,
+      name,
+      category,
+      pricePerKg,
+      availableQuantity,
+      location,
+      status
+    });
+
+    // Validate required fields (relaxed for drafts)
+    if (status !== 'draft' && (!name || !category || !pricePerKg || !availableQuantity || !location)) {
+      return res.status(400).json({
+        error: "Missing required fields: name, category, pricePerKg, availableQuantity, location"
+      });
+    }
+
+    // Validate status
+    const validStatuses = ['active', 'draft'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    // For development/testing, create user if doesn't exist
+    let farmerDbId;
+    try {
+      const [farmerRows] = await pool.query(
+        'SELECT id FROM users WHERE firebase_uid = ?',
+        [farmerId]
+      );
+
+      if (farmerRows.length === 0) {
+        console.log('User not found, creating development user for farmerId:', farmerId);
+        // Create user for development
+        const [newUserResult] = await pool.query(
+          'INSERT INTO users (firebase_uid, role, full_name, phone, email, region, woreda) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [farmerId, 'farmer', 'Development Farmer', '+251900000000', 'dev@example.com', 'Addis Ababa', 'Development Area']
+        );
+        farmerDbId = newUserResult.insertId;
+
+        // Create farmer profile
+        await pool.query(
+          'INSERT INTO farmer_profiles (user_id, farm_name, farm_size_ha, experience_years, address) VALUES (?, ?, ?, ?, ?)',
+          [farmerDbId, 'Development Farm', 5.0, 3, 'Addis Ababa, Ethiopia']
+        );
+        console.log('Created new user and farmer profile with ID:', farmerDbId);
+      } else {
+        farmerDbId = farmerRows[0].id;
+        console.log('Found existing user with ID:', farmerDbId);
+      }
+    } catch (dbError) {
+      console.error('Database error while finding/creating user:', dbError);
+      throw new Error(`Database error: ${dbError.message}`);
+    }
+
+    // Create the listing (support both new and legacy schemas)
+    let result;
+    try {
+      const useNewSchema = await columnExists('produce_listings', 'farmer_user_id');
+      console.log('Using schema:', useNewSchema ? 'new' : 'legacy');
+      
+      if (useNewSchema) {
+        console.log('Inserting with new schema...');
+        [result] = await pool.query(
+          `INSERT INTO produce_listings (
+            farmer_user_id,
+            title,
+            crop,
+            variety,
+            quantity,
+            unit,
+            price_per_unit,
+            currency,
+            available_from,
+            available_until,
+            region,
+            woreda,
+            description,
+            status
+          ) VALUES (?, ?, ?, NULL, ?, ?, ?, 'ETB', NULL, NULL, ?, NULL, ?, ?)`,
+          [
+            farmerDbId,
+            name || 'Draft Listing',
+            category || 'Other',
+            availableQuantity || 0,
+            'kg',
+            pricePerKg || 0,
+            location || 'Addis Ababa',
+            description || null,
+            status
+          ]
+        );
+      } else {
+        console.log('Inserting with legacy schema...');
+        [result] = await pool.query(
+          `INSERT INTO produce_listings (
+            farmer_id,
+            name,
+            name_am,
+            category,
+            price_per_kg,
+            available_quantity,
+            unit,
+            location,
+            description,
+            status,
+            created_at
+          ) VALUES (?, ?, NULL, ?, ?, ?, 'kg', ?, ?, ?, NOW())`,
+          [
+            farmerDbId,
+            name || 'Draft Listing',
+            category || 'Other',
+            pricePerKg || 0,
+            availableQuantity || 0,
+            location || 'Addis Ababa',
+            description || null,
+            status
+          ]
+        );
+      }
+      console.log('Listing created successfully with ID:', result.insertId);
+    } catch (insertError) {
+      console.error('Error creating listing:', insertError);
+      throw new Error(`Failed to create listing: ${insertError.message}`);
+    }
+
+    const listingId = result.insertId;
+
+    // Add image if provided
+    if (image) {
+      try {
+        await pool.query(
+          `INSERT INTO listing_images (listing_id, url, sort_order) VALUES (?, ?, 0)`,
+          [listingId, image]
+        );
+      } catch (_) {
+        // ignore if legacy schema without listing_images
+      }
+    }
+
+    // Get the created listing with all details
+    const [listingRows] = await pool.query(
+      (useNewSchema
+        ? `SELECT
+            pl.id,
+            pl.title,
+            pl.crop,
+            pl.price_per_unit as pricePerUnit,
+            pl.quantity as quantity,
+            pl.unit,
+            pl.region,
+            pl.woreda,
+            pl.description,
+            pl.status,
+            pl.created_at as createdAt,
+            pl.updated_at as updatedAt,
+            li.url as image
+          FROM produce_listings pl
+          LEFT JOIN listing_images li ON li.listing_id = pl.id AND li.sort_order = 0
+          WHERE pl.id = ?`
+        : `SELECT
+            pl.id,
+            pl.name as title,
+            pl.category as crop,
+            pl.price_per_kg as pricePerUnit,
+            pl.available_quantity as quantity,
+            pl.unit,
+            pl.location as region,
+            NULL as woreda,
+            pl.description,
+            pl.status,
+            pl.created_at as createdAt,
+            pl.updated_at as updatedAt,
+            pl.image_url as image
+          FROM produce_listings pl
+          WHERE pl.id = ?`),
+      [listingId]
+    );
+
+    if (listingRows.length === 0) {
+      return res.status(500).json({ error: "Failed to retrieve created listing" });
+    }
+
+    const createdListing = listingRows[0];
+
+    // Transform to match frontend expectations
+    const transformedListing = {
+      id: createdListing.id,
+      name: createdListing.title,
+      nameAm: null,
+      image: createdListing.image || "https://images.pexels.com/photos/4110404/pexels-photo-4110404.jpeg",
+      pricePerKg: createdListing.pricePerUnit,
+      availableQuantity: createdListing.quantity,
+      location: createdListing.woreda ? `${createdListing.region}, ${createdListing.woreda}` : createdListing.region,
+      status: createdListing.status,
+      createdAt: createdListing.createdAt,
+      category: createdListing.crop,
+      unit: createdListing.unit,
+      currency: 'ETB'
+    };
+
+    res.status(201).json(transformedListing);
+  } catch (error) {
+    console.error("Error creating farmer listing:", error);
+    
+    // Provide more specific error messages
+    let errorMessage = "Failed to create listing";
+    let statusCode = 500;
+    
+    if (error.message.includes('Database error')) {
+      errorMessage = "Database connection error. Please try again.";
+    } else if (error.message.includes('Failed to create listing')) {
+      errorMessage = error.message;
+    } else if (error.code === 'ER_DUP_ENTRY') {
+      errorMessage = "A listing with this information already exists";
+      statusCode = 409;
+    } else if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+      errorMessage = "Invalid user reference";
+      statusCode = 400;
+    }
+    
+    res.status(statusCode).json({ 
+      error: errorMessage,
+      ...(process.env.NODE_ENV === 'development' && {
+        details: error.message,
+        stack: error.stack
+      })
+    });
+  }
+};
+
+// Update existing produce listing for farmer
+export const updateFarmerListing = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+    const { id } = req.params;
+    const {
+      name,
+      nameAm,
+      description,
+      descriptionAm,
+      category,
+      pricePerKg,
+      availableQuantity,
+      location,
+      image,
+      status
+    } = req.body;
+
+    // Validate required fields (relaxed for drafts)
+    if (status !== 'draft' && (!name || !category || !pricePerKg || !availableQuantity || !location)) {
+      return res.status(400).json({
+        error: "Missing required fields: name, category, pricePerKg, availableQuantity, location"
+      });
+    }
+
+    // Validate status if provided
+    if (status) {
+      const validStatuses = ['active', 'inactive', 'sold_out', 'low_stock', 'draft', 'paused', 'sold', 'expired'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status value" });
+      }
+    }
+
+    // Get farmer's database ID from firebase_uid
+    const [farmerRows] = await pool.query(
+      'SELECT id FROM users WHERE firebase_uid = ?',
+      [farmerId]
+    );
+
+    if (farmerRows.length === 0) {
+      return res.status(404).json({ error: "Farmer not found" });
+    }
+
+    const farmerDbId = farmerRows[0].id;
+
+    // Check which schema to use
+    const useNewSchema = await columnExists('produce_listings', 'farmer_user_id');
+    
+    // Verify the listing belongs to this farmer
+    const farmerColumn = useNewSchema ? 'farmer_user_id' : 'farmer_id';
+    const [listingRows] = await pool.query(
+      `SELECT id FROM produce_listings WHERE id = ? AND ${farmerColumn} = ?`,
+      [id, farmerDbId]
+    );
+
+    if (listingRows.length === 0) {
+      return res.status(404).json({ error: "Listing not found or not authorized" });
+    }
+
+    // Update the listing based on schema
+    if (useNewSchema) {
+      const updateFields = [
+        'title = ?',
+        'crop = ?',
+        'quantity = ?',
+        'unit = ?',
+        'price_per_unit = ?',
+        'region = ?',
+        'description = ?',
+        'updated_at = NOW()'
+      ];
+      
+      const updateValues = [
+        name || 'Draft Listing',
+        category || 'Other',
+        availableQuantity || 0,
+        'kg',
+        pricePerKg || 0,
+        location || 'Addis Ababa',
+        description || null
+      ];
+
+      // Add status to update if provided
+      if (status) {
+        updateFields.push('status = ?');
+        updateValues.push(status);
+      }
+
+      updateValues.push(id);
+
+      await pool.query(
+        `UPDATE produce_listings SET ${updateFields.join(', ')} WHERE id = ?`,
+        updateValues
+      );
+    } else {
+      const updateFields = [
+        'name = ?',
+        'name_am = ?',
+        'category = ?',
+        'available_quantity = ?',
+        'unit = ?',
+        'price_per_kg = ?',
+        'location = ?',
+        'description = ?',
+        'updated_at = NOW()'
+      ];
+      
+      const updateValues = [
+        name || 'Draft Listing',
+        nameAm || null,
+        category || 'Other',
+        availableQuantity || 0,
+        'kg',
+        pricePerKg || 0,
+        location || 'Addis Ababa',
+        description || null
+      ];
+
+      // Add status to update if provided
+      if (status) {
+        updateFields.push('status = ?');
+        updateValues.push(status);
+      }
+
+      updateValues.push(id);
+
+      await pool.query(
+        `UPDATE produce_listings SET ${updateFields.join(', ')} WHERE id = ?`,
+        updateValues
+      );
+    }
+
+    // Get the updated listing
+    let selectQuery;
+    if (useNewSchema) {
+      selectQuery = `SELECT
+        pl.id,
+        pl.title as name,
+        pl.crop as category,
+        pl.description,
+        pl.price_per_unit as pricePerKg,
+        pl.quantity as availableQuantity,
+        pl.region as location,
+        pl.status,
+        pl.created_at as createdAt,
+        pl.updated_at as updatedAt
+      FROM produce_listings pl
+      WHERE pl.id = ?`;
+    } else {
+      selectQuery = `SELECT
+        pl.id,
+        pl.name,
+        pl.name_am,
+        pl.description,
+        pl.category,
+        pl.price_per_kg as pricePerKg,
+        pl.available_quantity as availableQuantity,
+        pl.location,
+        pl.image_url as image,
+        pl.status,
+        pl.created_at as createdAt,
+        pl.updated_at as updatedAt
+      FROM produce_listings pl
+      WHERE pl.id = ?`;
+    }
+    
+    const [updatedListingRows] = await pool.query(selectQuery, [id]);
+
+    if (updatedListingRows.length === 0) {
+      return res.status(500).json({ error: "Failed to retrieve updated listing" });
+    }
+
+    const updatedListing = updatedListingRows[0];
+
+    res.json(updatedListing);
+  } catch (error) {
+    console.error("Error updating farmer listing:", error);
+    res.status(500).json({ error: "Failed to update listing" });
+  }
+};
+
+// Update listing status
+export const updateListingStatus = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    const validStatuses = ['active', 'inactive', 'sold_out', 'low_stock', 'draft'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    // Get farmer's database ID from firebase_uid
+    const [farmerRows] = await pool.query(
+      'SELECT id FROM users WHERE firebase_uid = ?',
+      [farmerId]
+    );
+
+    if (farmerRows.length === 0) {
+      return res.status(404).json({ error: "Farmer not found" });
+    }
+
+    const farmerDbId = farmerRows[0].id;
+
+    // Verify the listing belongs to this farmer
+    const [listingRows] = await pool.query(
+      'SELECT id FROM produce_listings WHERE id = ? AND farmer_user_id = ?',
+      [id, farmerDbId]
+    );
+
+    if (listingRows.length === 0) {
+      return res.status(404).json({ error: "Listing not found or not authorized" });
+    }
+
+    // Update the listing status
+    await pool.query(
+      'UPDATE produce_listings SET status = ?, updated_at = NOW() WHERE id = ?',
+      [status, id]
+    );
+
+    res.json({ message: "Listing status updated successfully" });
+  } catch (error) {
+    console.error("Error updating listing status:", error);
+    res.status(500).json({ error: "Failed to update listing status" });
+  }
+};
+
+// Upload image for farmer
+export const uploadImage = async (req, res) => {
+  try {
+    console.log('Upload request received:', {
+      hasFile: !!req.file,
+      fileInfo: req.file ? {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      } : null,
+      user: req.user ? req.user.uid : 'No user'
+    });
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No image file provided" });
+    }
+
+    // Generate the URL for the uploaded image
+    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+
+    console.log('Image uploaded successfully:', imageUrl);
+
+    res.json({
+      message: "Image uploaded successfully",
+      imageUrl: imageUrl,
+      filename: req.file.filename
+    });
+  } catch (error) {
+    console.error("Error uploading image:", error);
+    res.status(500).json({ error: "Failed to upload image" });
+  }
+};
+
+// Bulk update listing statuses
+export const bulkUpdateListingStatus = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+    const { listingIds, status } = req.body;
+
+    if (!listingIds || !Array.isArray(listingIds) || listingIds.length === 0) {
+      return res.status(400).json({ error: "Invalid listing IDs provided" });
+    }
+
+    // Validate status
+    const validStatuses = ['active', 'inactive', 'sold_out', 'low_stock', 'draft'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    // Get farmer's database ID from firebase_uid
+    const [farmerRows] = await pool.query(
+      'SELECT id FROM users WHERE firebase_uid = ?',
+      [farmerId]
+    );
+
+    if (farmerRows.length === 0) {
+      return res.status(404).json({ error: "Farmer not found" });
+    }
+
+    const farmerDbId = farmerRows[0].id;
+
+    // Verify all listings belong to this farmer
+    const placeholders = listingIds.map(() => '?').join(',');
+    const [listings] = await pool.query(
+      `SELECT id FROM produce_listings WHERE id IN (${placeholders}) AND farmer_user_id = ?`,
+      [...listingIds, farmerDbId]
+    );
+
+    if (listings.length !== listingIds.length) {
+      return res.status(403).json({ error: "Some listings not found or not authorized" });
+    }
+
+    // Update all listings
+    await pool.query(
+      `UPDATE produce_listings SET status = ?, updated_at = NOW() WHERE id IN (${placeholders})`,
+      [status, ...listingIds]
+    );
+
+    res.json({ 
+      message: `Successfully updated ${listingIds.length} listings to ${status}`,
+      updatedCount: listingIds.length
+    });
+  } catch (error) {
+    console.error("Error bulk updating listing status:", error);
+    res.status(500).json({ error: "Failed to bulk update listing status" });
+  }
+};
+
+// Bulk delete listings
+export const bulkDeleteListings = async (req, res) => {
+  try {
+    const farmerId = req.user.uid;
+    const { listingIds } = req.body;
+
+    if (!listingIds || !Array.isArray(listingIds) || listingIds.length === 0) {
+      return res.status(400).json({ error: "Invalid listing IDs provided" });
+    }
+
+    // Get farmer's database ID from firebase_uid
+    const [farmerRows] = await pool.query(
+      'SELECT id FROM users WHERE firebase_uid = ?',
+      [farmerId]
+    );
+
+    if (farmerRows.length === 0) {
+      return res.status(404).json({ error: "Farmer not found" });
+    }
+
+    const farmerDbId = farmerRows[0].id;
+
+    // Verify all listings belong to this farmer
+    const placeholders = listingIds.map(() => '?').join(',');
+    const [listings] = await pool.query(
+      `SELECT id FROM produce_listings WHERE id IN (${placeholders}) AND farmer_user_id = ?`,
+      [...listingIds, farmerDbId]
+    );
+
+    if (listings.length !== listingIds.length) {
+      return res.status(403).json({ error: "Some listings not found or not authorized" });
+    }
+
+    // Check if any listings have active orders
+    const [orders] = await pool.query(
+      `SELECT COUNT(*) as count FROM order_items WHERE listing_id IN (${placeholders})`,
+      listingIds
+    );
+
+    if (orders[0].count > 0) {
+      return res.status(400).json({
+        error: "Cannot delete listings with active orders. Consider setting status to 'inactive' instead."
+      });
+    }
+
+    // Delete listing images first
+    await pool.query(
+      `DELETE FROM listing_images WHERE listing_id IN (${placeholders})`,
+      listingIds
+    );
+
+    // Delete the listings
+    await pool.query(
+      `DELETE FROM produce_listings WHERE id IN (${placeholders})`,
+      listingIds
+    );
+
+    res.json({ 
+      message: `Successfully deleted ${listingIds.length} listings`,
+      deletedCount: listingIds.length
+    });
+  } catch (error) {
+    console.error("Error bulk deleting listings:", error);
+    res.status(500).json({ error: "Failed to bulk delete listings" });
+  }
+};
+
+// Add image to a specific listing
+export const addListingImage = async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const { id: listingId } = req.params;
+    const file = req.file;
+    const { url } = req.body;
+
+    // Get user ID
+    let userId;
+
+    if (uid.startsWith('dev-uid-')) {
+      userId = req.user.id;
+    } else {
+      const [userRows] = await pool.query(
+        "SELECT id FROM users WHERE firebase_uid = ?",
+        [uid]
+      );
+
+      if (userRows.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      userId = userRows[0].id;
+    }
+
+    // Verify user owns the listing (check both old and new schema)
+    const [listings] = await pool.query(
+      "SELECT * FROM produce_listings WHERE id = ? AND (farmer_user_id = ? OR farmer_id = ?)",
+      [listingId, userId, userId]
+    );
+
+    if (listings.length === 0) {
+      return res.status(404).json({ error: "Listing not found or not authorized" });
+    }
+
+    // Determine image URL - either from file upload or direct URL
+    let imageUrl;
+    if (file) {
+      imageUrl = file.path;
+    } else if (url) {
+      imageUrl = url;
+    } else {
+      return res.status(400).json({ error: "No image file or URL provided" });
+    }
+
+    // Insert image into listing_images table
+    await pool.query(
+      "INSERT INTO listing_images (listing_id, url, sort_order) VALUES (?, ?, 0)",
+      [listingId, imageUrl]
+    );
+
+    res.status(201).json({
+      message: "Image added to listing successfully",
+      image: {
+        listing_id: listingId,
+        url: imageUrl
+      }
+    });
+
+  } catch (error) {
+    console.error('Error adding image to listing:', error);
+    res.status(500).json({ error: "Failed to add image to listing" });
+  }
+};
