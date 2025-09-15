@@ -39,4 +39,27 @@ router.get('/orders', getFarmerOrders);
 router.post('/upload-image', upload.single('image'), handleUploadError, uploadImage);
 router.post('/listings/:id/images', upload.single('image'), handleUploadError, addListingImage);
 
+// Debug endpoint to check images
+router.get('/debug/images/:listingId', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const { pool } = await import('../config/database.js');
+    
+    const [images] = await pool.query(`
+      SELECT id, listing_id, url, sort_order, created_at
+      FROM listing_images 
+      WHERE listing_id = ?
+      ORDER BY sort_order
+    `, [listingId]);
+    
+    res.json({
+      listingId,
+      imageCount: images.length,
+      images: images
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

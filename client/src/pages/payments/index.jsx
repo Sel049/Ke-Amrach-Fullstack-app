@@ -1,10 +1,13 @@
 import React from 'react';
 import BuyerPaymentPage from './BuyerPaymentPage.jsx';
+import FarmerPaymentPage from './FarmerPaymentPage.jsx';
 
-const BuyerPaymentsPage = () => {
+const PaymentsPage = () => {
+  const role = localStorage.getItem('userRole');
+  if (role === 'farmer') return <FarmerPaymentPage />;
   return <BuyerPaymentPage />;
 };
 
-export default BuyerPaymentsPage;
+export default PaymentsPage;
 
 

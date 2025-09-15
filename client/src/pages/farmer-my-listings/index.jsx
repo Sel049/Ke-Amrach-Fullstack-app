@@ -385,11 +385,34 @@ const FarmerMyListings = () => {
 
                   {/* Image */}
                   <div className="relative">
-                    <img 
-                      src={listing.image || '/public/assets/images/no_image.png'} 
-                      alt={listing.name} 
-                      className="object-cover w-full h-40" 
-                    />
+                    {listing.images && listing.images.length > 0 ? (
+                      <div className="relative w-full h-40 overflow-hidden">
+                        <img 
+                          src={listing.images[0] || '/assets/images/no_image.png'} 
+                          alt={listing.name || 'Product Image'} 
+                          className="object-cover w-full h-full" 
+                          onError={(e) => {
+                            console.log('Image failed to load:', listing.images[0]);
+                            e.target.src = '/assets/images/no_image.png';
+                          }}
+                        />
+                        {listing.images.length > 1 && (
+                          <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs">
+                            +{listing.images.length - 1}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <img 
+                        src={listing.image || '/assets/images/no_image.png'} 
+                        alt={listing.name || 'Product Image'} 
+                        className="object-cover w-full h-40" 
+                        onError={(e) => {
+                          console.log('Image failed to load:', listing.image);
+                          e.target.src = '/assets/images/no_image.png';
+                        }}
+                      />
+                    )}
                     {/* Status Badge */}
                     <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(listing.status)}`}>
                       <Icon name={getStatusIcon(listing.status)} size={12} className="inline mr-1" />

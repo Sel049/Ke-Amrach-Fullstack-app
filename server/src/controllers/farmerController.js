@@ -148,11 +148,9 @@ export const getFarmerListings = async (req, res) => {
           pl.woreda,
           pl.description,
           pl.status,
-          pl.created_at,
-          li.url as image
+          pl.created_at
         FROM produce_listings pl
         JOIN users u ON pl.farmer_user_id = u.id
-        LEFT JOIN listing_images li ON li.listing_id = pl.id AND li.sort_order = 0
         ${whereClause}
         ORDER BY pl.created_at DESC
         LIMIT ?`
@@ -177,6 +175,39 @@ export const getFarmerListings = async (req, res) => {
 
     const [listings] = await pool.query(query, params);
 
+    // Get all images for these listings (only for new schema)
+    let imagesByListing = {};
+    if (hasNewFarmerCol && hasTitleCol && hasPricePerUnit) {
+      const listingIds = listings.map(l => l.id);
+      
+      if (listingIds.length > 0) {
+        const imagesQuery = `
+          SELECT listing_id, url, sort_order
+          FROM listing_images
+          WHERE listing_id IN (${listingIds.map(() => '?').join(',')})
+          ORDER BY listing_id, sort_order
+        `;
+        
+        const [imageRows] = await pool.query(imagesQuery, listingIds);
+        
+        // Group images by listing_id
+        imageRows.forEach(img => {
+          if (!imagesByListing[img.listing_id]) {
+            imagesByListing[img.listing_id] = [];
+          }
+          imagesByListing[img.listing_id].push(img.url);
+        });
+      }
+    }
+
+    console.log('Retrieved farmer listings with images:', listings.map(l => ({
+      id: l.id,
+      name: l.name || l.title,
+      image: l.image
+    })));
+
+    console.log('Images by listing:', imagesByListing);
+
     // Transform data to match frontend expectations
     const statusMapOut = {
       sold: 'sold_out',
@@ -186,20 +217,30 @@ export const getFarmerListings = async (req, res) => {
       draft: 'draft',
       inactive: 'inactive'
     };
-    const transformedListings = listings.map(listing => ({
-      id: listing.id,
-      name: listing.name || listing.title,
-      nameAm: listing.name_am || null,
-      image: listing.image || "https://images.pexels.com/photos/4110404/pexels-photo-4110404.jpeg",
-      pricePerKg: listing.pricePerUnit,
-      availableQuantity: listing.quantity,
-      location: listing.woreda ? `${listing.region}, ${listing.woreda}` : (listing.region || listing.location),
-      status: statusMapOut[listing.status] || listing.status,
-      createdAt: listing.created_at,
-      category: listing.category || listing.crop,
-      unit: listing.unit,
-      currency: 'ETB'
-    }));
+    const transformedListings = listings.map(listing => {
+      const listingImages = imagesByListing[listing.id] || [];
+      return {
+        id: listing.id,
+        name: listing.name || listing.title,
+        nameAm: listing.name_am || null,
+        image: listingImages[0] || listing.image || "https://images.pexels.com/photos/4110404/pexels-photo-4110404.jpeg",
+        images: listingImages, // All images
+        pricePerKg: listing.pricePerUnit,
+        availableQuantity: listing.quantity,
+        location: listing.woreda ? `${listing.region}, ${listing.woreda}` : (listing.region || listing.location),
+        status: statusMapOut[listing.status] || listing.status,
+        createdAt: listing.created_at,
+        category: listing.category || listing.crop,
+        unit: listing.unit,
+        currency: 'ETB'
+      };
+    });
+
+    console.log('Transformed farmer listings:', transformedListings.map(l => ({
+      id: l.id,
+      name: l.name,
+      image: l.image
+    })));
 
     res.json({ listings: transformedListings });
   } catch (error) {
@@ -431,6 +472,7 @@ export const createFarmerListing = async (req, res) => {
           `INSERT INTO listing_images (listing_id, url, sort_order) VALUES (?, ?, 0)`,
           [listingId, image]
         );
+        console.log('Primary image added to listing with sort_order 0');
       } catch (_) {
         // ignore if legacy schema without listing_images
       }
@@ -920,6 +962,14 @@ export const addListingImage = async (req, res) => {
     const file = req.file;
     const { url } = req.body;
 
+    console.log('addListingImage called with:', {
+      uid,
+      listingId,
+      hasFile: !!file,
+      hasUrl: !!url,
+      url: url
+    });
+
     // Get user ID
     let userId;
 
@@ -957,11 +1007,50 @@ export const addListingImage = async (req, res) => {
       return res.status(400).json({ error: "No image file or URL provided" });
     }
 
+    // Check if listing_images table exists and is accessible
+    try {
+      await pool.query("SELECT 1 FROM listing_images LIMIT 1");
+    } catch (tableError) {
+      console.error('listing_images table not accessible:', tableError.message);
+      return res.status(500).json({ 
+        error: "Database table not accessible", 
+        details: tableError.message 
+      });
+    }
+
+    // Get the next sort order for this listing
+    let nextSortOrder = 0;
+    try {
+      const [existingImages] = await pool.query(
+        "SELECT MAX(sort_order) as max_sort FROM listing_images WHERE listing_id = ?",
+        [listingId]
+      );
+      
+      nextSortOrder = (existingImages[0]?.max_sort ?? -1) + 1;
+    } catch (sortError) {
+      console.warn('Could not get max sort order, using 0:', sortError.message);
+      nextSortOrder = 0;
+    }
+
     // Insert image into listing_images table
-    await pool.query(
-      "INSERT INTO listing_images (listing_id, url, sort_order) VALUES (?, ?, 0)",
-      [listingId, imageUrl]
-    );
+    console.log('Inserting image into listing_images table:', {
+      listingId,
+      imageUrl,
+      userId,
+      sortOrder: nextSortOrder
+    });
+    
+    try {
+      await pool.query(
+        "INSERT INTO listing_images (listing_id, url, sort_order) VALUES (?, ?, ?)",
+        [listingId, imageUrl, nextSortOrder]
+      );
+
+      console.log('Image successfully inserted into database with sort_order:', nextSortOrder);
+    } catch (insertError) {
+      console.error('Failed to insert image into database:', insertError);
+      throw new Error(`Database error: ${insertError.message}`);
+    }
 
     res.status(201).json({
       message: "Image added to listing successfully",

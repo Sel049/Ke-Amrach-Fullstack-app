@@ -12,6 +12,7 @@ import marketTrendsRoutes from "./marketTrendsRoutes.js";
 import favoriteRoutes from "./favoriteRoutes.js";
 import dashboardRoutes from "./dashboardRoutes.js";
 import healthRoutes from "./healthRoutes.js";
+import paymentRoutes from "./paymentRoutes.js";
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.use('/market-trends', marketTrendsRoutes);
 router.use('/favorites', favoriteRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/health', healthRoutes);
+router.use('/payments', paymentRoutes);
 
 // Legacy health check endpoint (redirects to new health system)
 router.get('/health-legacy', (req, res) => {

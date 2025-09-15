@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
+import ImageGallery from '../../../components/ui/ImageGallery';
 import Button from '../../../components/ui/Button';
 import FavoriteButton from '../../../components/FavoriteButton';
 
@@ -87,10 +88,11 @@ const ProduceCard = ({
     <div className="bg-card rounded-lg border border-border shadow-warm hover:shadow-warm-md transition-smooth overflow-hidden">
       {/* Image Section */}
       <div className="relative aspect-[4/3] overflow-hidden">
-        <Image
-          src={listing?.image}
-          alt={currentLanguage === 'am' && listing?.nameAm ? listing?.nameAm : listing?.name}
-          className="w-full h-full object-cover"
+        <ImageGallery
+          images={listing?.images || (listing?.image ? [listing.image] : [])}
+          alt={currentLanguage === 'am' && listing?.nameAm ? listing?.nameAm : listing?.name || 'Product Image'}
+          className="w-full h-full"
+          showThumbnails={false}
         />
 
         {/* Favorite Button */}

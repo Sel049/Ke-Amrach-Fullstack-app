@@ -12,6 +12,7 @@ import Icon from '../../components/AppIcon';
 import axios from 'axios';
 import { auth } from '../../firebase';
 import { useLanguage } from '../../hooks/useLanguage.jsx';
+import DebugInfo from '../../components/DebugInfo.jsx';
 
 const AddListing = () => {
   const { language } = useLanguage();
@@ -25,6 +26,7 @@ const AddListing = () => {
   const [isDraft, setIsDraft] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingListingId, setEditingListingId] = useState(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -310,7 +312,8 @@ const AddListing = () => {
         pricePerKg: Number(formData.pricePerKg) || 0,
         availableQuantity: Number(formData.availableQuantity) || 0,
         location: formData.region || 'Addis Ababa',
-        status: 'draft'
+        status: 'draft',
+        image: formData.images && formData.images.length > 0 ? formData.images[0] : undefined
       };
 
       // Basic validation for draft - ensure we have at least a name
@@ -325,6 +328,9 @@ const AddListing = () => {
       console.log('Saving draft with data:', listingData);
       console.log('API endpoint:', `${API_BASE}/farmers/listings`);
       console.log('Auth header present:', !!authHeader);
+      console.log('Auth header value:', authHeader ? authHeader.substring(0, 20) + '...' : 'None');
+      console.log('User authenticated:', isAuthenticated);
+      console.log('User role:', userRole);
 
       let response;
       if (isEditMode && editingListingId) {
@@ -348,6 +354,35 @@ const AddListing = () => {
       }
 
       if (response.status === 200 || response.status === 201) {
+        const listingId = response.data?.id;
+        
+        // If image URLs exist, attach all images to the draft
+        if (listingId && Array.isArray(formData.images) && formData.images.length > 0) {
+          console.log('Attaching images to draft listing:', formData.images);
+          
+          for (let i = 0; i < formData.images.length; i++) {
+            try {
+              const imageUrl = formData.images[i];
+              console.log(`Attaching image ${i + 1}/${formData.images.length} to draft:`, imageUrl);
+              
+              const attachResponse = await axios.post(`${API_BASE}/farmers/listings/${listingId}/images`, 
+                { url: imageUrl }, 
+                {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: authHeader
+                  }
+                }
+              );
+              
+              console.log(`Draft image ${i + 1} attached successfully:`, attachResponse.data);
+            } catch (attachErr) {
+              console.error(`Failed to attach image ${i + 1} to draft:`, attachErr);
+              // Continue with other images even if one fails
+            }
+          }
+        }
+        
         alert(currentLanguage === 'en' ? 'Draft saved successfully!' : 'ረቂቁ በተሳካ ሁኔታ ተቀምጧል!');
         navigate('/farmer-my-listings');
       }
@@ -362,6 +397,12 @@ const AddListing = () => {
         const status = error.response.status;
         const serverMessage = error.response.data?.error || error.response.data?.message;
         
+        console.error('Draft save error details:', {
+          status,
+          data: error.response.data,
+          message: serverMessage
+        });
+        
         if (status === 401) {
           errorMessage = currentLanguage === 'en' ? 'Authentication failed. Please log in again.' : 'ማረጋገጫ አልተሳካም። እባክዎ እንደገና ይግቡ።';
         } else if (status === 400) {
@@ -375,7 +416,14 @@ const AddListing = () => {
         }
       } else if (error.request) {
         // Network error
-        errorMessage = currentLanguage === 'en' ? 'Network error. Please check your connection.' : 'የኔትዎርክ ስህተት። እባክዎ ግንኙነትዎን ያረጋግጡ።';
+        console.error('Draft save network error:', error.request);
+        errorMessage = currentLanguage === 'en' ? 'Network error. Please check your connection and try again.' : 'የኔትዎርክ ስህተት። እባክዎ ግንኙነትዎን ያረጋግጡ እና እንደገና ይሞክሩ።';
+      } else {
+        // Other error
+        console.error('Draft save other error:', error.message);
+        errorMessage = currentLanguage === 'en' 
+          ? `Error: ${error.message}` 
+          : `ስህተት: ${error.message}`;
       }
       
       alert(errorMessage);
@@ -437,6 +485,14 @@ const AddListing = () => {
         location: formData.region
       };
 
+      // Debug logging for publish
+      console.log('Publishing listing with data:', listingData);
+      console.log('API endpoint:', `${API_BASE}/farmers/listings`);
+      console.log('Auth header present:', !!authHeader);
+      console.log('Auth header value:', authHeader ? authHeader.substring(0, 20) + '...' : 'None');
+      console.log('User authenticated:', isAuthenticated);
+      console.log('User role:', userRole);
+
       let response;
       let listingId;
       
@@ -462,21 +518,67 @@ const AddListing = () => {
 
       if (response.status === 200 || response.status === 201 || response.data?.id) {
 
-        // If image URLs exist, attach the first as primary
+        // If image URLs exist, attach all images
         if (listingId && Array.isArray(formData.images) && formData.images.length > 0) {
-          try {
-            await axios.post(`${API_BASE}/farmers/listings/${listingId}/images`, 
-              { url: formData.images[0] }, 
-              {
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: authHeader
+          console.log('=== IMAGE ATTACHMENT DEBUG ===');
+          console.log('Listing ID:', listingId);
+          console.log('Images to attach:', formData.images);
+          console.log('Number of images:', formData.images.length);
+          console.log('API Base URL:', API_BASE);
+          console.log('Auth header present:', !!authHeader);
+          
+          let successfulAttachments = 0;
+          let failedAttachments = 0;
+          
+          for (let i = 0; i < formData.images.length; i++) {
+            try {
+              const imageUrl = formData.images[i];
+              console.log(`\n--- Attaching image ${i + 1}/${formData.images.length} ---`);
+              console.log('Image URL:', imageUrl);
+              console.log('Endpoint:', `${API_BASE}/farmers/listings/${listingId}/images`);
+              
+              const attachResponse = await axios.post(`${API_BASE}/farmers/listings/${listingId}/images`, 
+                { url: imageUrl }, 
+                {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: authHeader
+                  }
                 }
-              }
-            );
-          } catch (attachErr) {
-            console.warn('Image attach failed, continuing:', attachErr);
+              );
+              
+              console.log(`✅ Image ${i + 1} attached successfully:`, attachResponse.data);
+              successfulAttachments++;
+            } catch (attachErr) {
+              console.error(`❌ Failed to attach image ${i + 1}:`, attachErr);
+              console.error('Image attach error details:', {
+                status: attachErr.response?.status,
+                data: attachErr.response?.data,
+                message: attachErr.message,
+                url: attachErr.config?.url,
+                method: attachErr.config?.method
+              });
+              failedAttachments++;
+              // Continue with other images even if one fails
+            }
           }
+          
+          console.log(`=== IMAGE ATTACHMENT SUMMARY ===`);
+          console.log(`Successful: ${successfulAttachments}/${formData.images.length}`);
+          console.log(`Failed: ${failedAttachments}/${formData.images.length}`);
+          console.log('=== END IMAGE ATTACHMENT DEBUG ===\n');
+          
+          // Show user feedback about image attachment
+          if (failedAttachments > 0) {
+            console.warn(`Warning: ${failedAttachments} images failed to attach. Listing was created but some images may not be visible.`);
+          }
+        } else {
+          console.log('No images to attach:', {
+            listingId,
+            hasImages: Array.isArray(formData.images),
+            imageCount: formData.images?.length || 0,
+            images: formData.images
+          });
         }
 
         alert(
@@ -488,8 +590,45 @@ const AddListing = () => {
       }
     } catch (error) {
       console.error('Failed to publish listing:', error);
-      alert(currentLanguage === 'en' ?'Failed to publish listing. Please try again.' :'ዝርዝሩ ማተም አልተሳካም። እባክዎን እንደገና ይሞክሩ።'
-      );
+      
+      // Provide more specific error messages
+      let errorMessage = currentLanguage === 'en' ? 'Failed to publish listing. Please try again.' : 'ዝርዝሩ ማተም አልተሳካም። እባክዎን እንደገና ይሞክሩ።';
+      
+      if (error.response) {
+        // Server responded with error status
+        const status = error.response.status;
+        const serverMessage = error.response.data?.error || error.response.data?.message;
+        
+        console.error('Server error details:', {
+          status,
+          data: error.response.data,
+          message: serverMessage
+        });
+        
+        if (status === 401) {
+          errorMessage = currentLanguage === 'en' ? 'Authentication failed. Please log in again.' : 'ማረጋገጫ አልተሳካም። እባክዎ እንደገና ይግቡ።';
+        } else if (status === 400) {
+          errorMessage = currentLanguage === 'en' 
+            ? `Invalid data: ${serverMessage || 'Please check your input and try again.'}`
+            : `የማይሰራ ውሂብ: ${serverMessage || 'እባክዎ የገባችሁትን ያረጋግጡ እና እንደገና ይሞክሩ።'}`;
+        } else if (status === 500) {
+          errorMessage = currentLanguage === 'en' ? 'Server error. Please try again later.' : 'የሰርቨር ስህተት። እባክዎ ቆይተው እንደገና ይሞክሩ።';
+        } else if (serverMessage) {
+          errorMessage = serverMessage;
+        }
+      } else if (error.request) {
+        // Network error
+        console.error('Network error:', error.request);
+        errorMessage = currentLanguage === 'en' ? 'Network error. Please check your connection and try again.' : 'የኔትዎርክ ስህተት። እባክዎ ግንኙነትዎን ያረጋግጡ እና እንደገና ይሞክሩ።';
+      } else {
+        // Other error
+        console.error('Other error:', error.message);
+        errorMessage = currentLanguage === 'en' 
+          ? `Error: ${error.message}` 
+          : `ስህተት: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -695,6 +834,17 @@ const AddListing = () => {
             </div>
           </div>
         </div>
+        
+        {/* Debug Info */}
+        <DebugInfo isVisible={showDebug} />
+        
+        {/* Debug Toggle Button */}
+        <button
+          onClick={() => setShowDebug(!showDebug)}
+          className="fixed bottom-4 left-4 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg z-50"
+        >
+          {showDebug ? 'Hide Debug' : 'Show Debug'}
+        </button>
     </AuthenticatedLayout>
   );
 };

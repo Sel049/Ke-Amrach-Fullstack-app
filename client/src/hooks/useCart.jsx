@@ -1,23 +1,46 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from './useAuth.jsx';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
+  const { user } = useAuth() || {};
   const [items, setItems] = useState([]);
 
+  // Build a per-user storage key. Fallbacks: firebase_uid -> id -> email -> 'guest'
+  const userId = user?.firebase_uid || user?.id || user?.email || 'guest';
+  const storageKey = `cart_${userId}`;
+
+  // Load cart for current user (with legacy migration from global_cart once)
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('global_cart');
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setItems(parsed);
+        if (Array.isArray(parsed)) {
+          setItems(parsed);
+          return;
+        }
+      }
+      // Legacy migration: move global_cart to per-user key only if present and current per-user is empty
+      const legacy = localStorage.getItem('global_cart');
+      if (legacy) {
+        const parsedLegacy = JSON.parse(legacy);
+        if (Array.isArray(parsedLegacy)) {
+          localStorage.setItem(storageKey, JSON.stringify(parsedLegacy));
+          localStorage.removeItem('global_cart');
+          setItems(parsedLegacy);
+        }
+      } else {
+        setItems([]);
       }
     } catch {}
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
 
   useEffect(() => {
-    try { localStorage.setItem('global_cart', JSON.stringify(items)); } catch {}
-  }, [items]);
+    try { localStorage.setItem(storageKey, JSON.stringify(items)); } catch {}
+  }, [items, storageKey]);
 
   const addItem = (item, quantity = 1) => {
     setItems(prev => {

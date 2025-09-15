@@ -25,7 +25,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth.jsx";
 import CartPage from './pages/cart';
-import BuyerPaymentsPage from './pages/payments';
+import PaymentsPage from './pages/payments';
 import HelpPage from './pages/help';
 import ResetPasswordPage from './pages/authentication-login-register/components/ResetPasswordPage';
 import AdminDashboard from './pages/admin-dashboard';
@@ -167,8 +167,8 @@ const Routes = () => {
           </ProtectedRoute>
         } />
         <Route path="/payments" element={
-          <ProtectedRoute requiredRole="buyer">
-            <BuyerPaymentsPage />
+          <ProtectedRoute>
+            <PaymentsPage />
           </ProtectedRoute>
         } />
 

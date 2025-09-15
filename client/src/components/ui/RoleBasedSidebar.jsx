@@ -33,6 +33,12 @@ const RoleBasedSidebar = ({ userRole, isAuthenticated, isCollapsed, onToggleColl
       icon: 'Home'
     },
     {
+      name: 'Payments',
+      nameAm: 'ክፍያዎች',
+      path: '/payments',
+      icon: 'CreditCard'
+    },
+    {
       name: 'Add Listing',
       nameAm: 'ዝርዝር ጨምር',
       path: '/add-listing',

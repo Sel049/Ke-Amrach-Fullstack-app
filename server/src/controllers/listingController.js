@@ -5,7 +5,8 @@ export const getAllActiveListings = async (req, res) => {
   try {
     const startTime = Date.now();
     
-    const query = `
+    // First get all listings
+    const listingsQuery = `
       SELECT
         pl.id,
         pl.title as name,
@@ -14,7 +15,6 @@ export const getAllActiveListings = async (req, res) => {
         pl.price_per_unit as pricePerKg,
         pl.quantity as availableQuantity,
         pl.crop as category,
-        li.url as image,
         pl.status,
         pl.created_at as createdAt,
         pl.updated_at as updatedAt,
@@ -28,22 +28,53 @@ export const getAllActiveListings = async (req, res) => {
         u.phone as farmer_phone
       FROM produce_listings pl
       JOIN users u ON pl.farmer_user_id = u.id
-      LEFT JOIN listing_images li ON pl.id = li.listing_id AND li.sort_order = 0
       WHERE pl.status = 'active'
       AND pl.quantity > 0
       ORDER BY pl.created_at DESC
       LIMIT 100
     `;
 
-    const [rows] = await pool.query(query);
+    const [listings] = await pool.query(listingsQuery);
+    
+    // Get all images for these listings
+    const listingIds = listings.map(l => l.id);
+    let images = [];
+    
+    if (listingIds.length > 0) {
+      const imagesQuery = `
+        SELECT listing_id, url, sort_order
+        FROM listing_images
+        WHERE listing_id IN (${listingIds.map(() => '?').join(',')})
+        ORDER BY listing_id, sort_order
+      `;
+      
+      const [imageRows] = await pool.query(imagesQuery, listingIds);
+      images = imageRows;
+    }
+    
+    // Group images by listing_id
+    const imagesByListing = {};
+    images.forEach(img => {
+      if (!imagesByListing[img.listing_id]) {
+        imagesByListing[img.listing_id] = [];
+      }
+      imagesByListing[img.listing_id].push(img.url);
+    });
+    
+    // Add images to listings
+    const listingsWithImages = listings.map(listing => ({
+      ...listing,
+      image: imagesByListing[listing.id]?.[0] || null, // Primary image for backward compatibility
+      images: imagesByListing[listing.id] || [] // All images
+    }));
     
     const queryTime = Date.now() - startTime;
-    console.log(`Active listings query took ${queryTime}ms, returned ${rows.length} results`);
+    console.log(`Active listings query took ${queryTime}ms, returned ${listingsWithImages.length} results`);
     
     res.json({
       success: true,
-      count: rows.length,
-      listings: rows,
+      count: listingsWithImages.length,
+      listings: listingsWithImages,
       queryTime: queryTime
     });
   } catch (error) {
@@ -61,7 +92,8 @@ export const getListingById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const query = `
+    // First get the listing
+    const listingQuery = `
       SELECT
         pl.id,
         pl.title as name,
@@ -70,7 +102,6 @@ export const getListingById = async (req, res) => {
         pl.price_per_unit as pricePerKg,
         pl.quantity as availableQuantity,
         pl.crop as category,
-        li.url as image,
         pl.status,
         pl.created_at as createdAt,
         pl.updated_at as updatedAt,
@@ -83,17 +114,36 @@ export const getListingById = async (req, res) => {
         pl.currency
       FROM produce_listings pl
       JOIN users u ON pl.farmer_user_id = u.id
-      LEFT JOIN listing_images li ON pl.id = li.listing_id AND li.sort_order = 0
       WHERE pl.id = ?
     `;
 
-    const [rows] = await pool.query(query, [id]);
+    const [listingRows] = await pool.query(listingQuery, [id]);
 
-    if (rows.length === 0) {
+    if (listingRows.length === 0) {
       return res.status(404).json({ error: 'Listing not found' });
     }
 
-    res.json(rows[0]);
+    const listing = listingRows[0];
+
+    // Get all images for this listing
+    const imagesQuery = `
+      SELECT url, sort_order
+      FROM listing_images
+      WHERE listing_id = ?
+      ORDER BY sort_order
+    `;
+
+    const [imageRows] = await pool.query(imagesQuery, [id]);
+    const images = imageRows.map(img => img.url);
+
+    // Add images to listing
+    const listingWithImages = {
+      ...listing,
+      image: images[0] || null, // Primary image for backward compatibility
+      images: images // All images
+    };
+
+    res.json(listingWithImages);
   } catch (error) {
     console.error('Error fetching listing by ID:', error);
     res.status(500).json({ error: 'Failed to fetch listing' });
