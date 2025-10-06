@@ -5,9 +5,9 @@ export const getBuyerDashboard = async (req, res) => {
   try {
     const uid = req.user.uid;
 
-    // Get user ID
+    // Get user ID and role
     const [userRows] = await pool.query(
-      "SELECT id FROM users WHERE firebase_uid = ?",
+      "SELECT id, role FROM users WHERE firebase_uid = ?",
       [uid]
     );
 
@@ -16,6 +16,12 @@ export const getBuyerDashboard = async (req, res) => {
     }
 
     const userId = userRows[0].id;
+    const userRole = userRows[0].role;
+
+    // Enforce role-based access
+    if (userRole !== 'buyer') {
+      return res.status(403).json({ error: "Access denied. Buyer role required." });
+    }
 
     // Get recent orders
     const [recentOrders] = await pool.query(
@@ -110,7 +116,7 @@ export const getBuyerDashboard = async (req, res) => {
        AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
        ORDER BY month DESC`
-    );
+    , [userId]);
 
     res.json({
       recentOrders,
@@ -140,9 +146,9 @@ export const getFarmerDashboard = async (req, res) => {
   try {
     const uid = req.user.uid;
 
-    // Get user ID
+    // Get user ID and role
     const [userRows] = await pool.query(
-      "SELECT id FROM users WHERE firebase_uid = ?",
+      "SELECT id, role FROM users WHERE firebase_uid = ?",
       [uid]
     );
 
@@ -151,6 +157,12 @@ export const getFarmerDashboard = async (req, res) => {
     }
 
     const userId = userRows[0].id;
+    const userRole = userRows[0].role;
+
+    // Enforce role-based access
+    if (userRole !== 'farmer') {
+      return res.status(403).json({ error: "Access denied. Farmer role required." });
+    }
 
     // Get recent orders
     const [recentOrders] = await pool.query(
@@ -211,7 +223,7 @@ export const getFarmerDashboard = async (req, res) => {
        AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
        ORDER BY month DESC`
-    );
+    , [userId]);
 
     // Get top performing crops
     const [topCrops] = await pool.query(
@@ -546,6 +558,72 @@ export const getAnalyticsData = async (req, res) => {
   } catch (error) {
     console.error('Error fetching analytics data:', error);
     res.status(500).json({ error: "Failed to fetch analytics data" });
+  }
+};
+
+// Get admin analytics data
+export const getAdminAnalytics = async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const { period = '30d' } = req.query;
+
+    // Verify admin role
+    const [userRows] = await pool.query(
+      "SELECT id, role FROM users WHERE firebase_uid = ? AND role = 'admin'",
+      [uid]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    // Calculate date range
+    let dateFilter = '';
+    let previousPeriodFilter = '';
+    
+    if (period === '7d') {
+      dateFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+      previousPeriodFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)";
+    } else if (period === '30d') {
+      dateFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+      previousPeriodFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+    } else if (period === '90d') {
+      dateFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)";
+      previousPeriodFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 180 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)";
+    } else if (period === '1y') {
+      dateFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 1 YEAR)";
+      previousPeriodFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 2 YEAR) AND created_at < DATE_SUB(NOW(), INTERVAL 1 YEAR)";
+    }
+
+    // Get top performing farmers
+    const [topFarmers] = await pool.query(
+      `SELECT 
+        u.full_name as name,
+        COUNT(o.id) as orders,
+        COALESCE(SUM(o.total), 0) as revenue,
+        COALESCE((
+          SELECT AVG(r2.rating) 
+          FROM reviews r2 
+          JOIN produce_listings pl ON r2.listing_id = pl.id 
+          WHERE pl.farmer_user_id = u.id
+        ), 0) as rating
+       FROM users u
+       LEFT JOIN orders o ON u.id = o.farmer_user_id AND o.status IN ('completed', 'delivered') ${dateFilter.replace('created_at', 'o.created_at')}
+       WHERE u.role = 'farmer'
+       GROUP BY u.id, u.full_name
+       HAVING orders > 0
+       ORDER BY revenue DESC
+       LIMIT 5`
+    );
+
+    res.json({
+      period,
+      topFarmers
+    });
+
+  } catch (error) {
+    console.error('Error fetching admin analytics:', error);
+    res.status(500).json({ error: "Failed to fetch admin analytics data" });
   }
 };
 

@@ -78,6 +78,20 @@ const NotificationCenter = ({ isOpen, onClose }) => {
         return '⭐';
       case 'message':
         return '💬';
+      case 'verification_document_uploaded':
+        return '📄';
+      case 'verification_document_approved':
+        return '✅';
+      case 'verification_document_rejected':
+        return '❌';
+      case 'verification_document_pending':
+        return '⏳';
+      case 'verification_document_uploaded_admin':
+        return '📋';
+      case 'listing_suspended':
+        return '⏸️';
+      case 'listing_activated':
+        return '▶️';
       default:
         return '🔔';
     }
@@ -103,6 +117,20 @@ const NotificationCenter = ({ isOpen, onClose }) => {
         return 'New Review';
       case 'message':
         return 'New Message';
+      case 'verification_document_uploaded':
+        return 'Document Uploaded';
+      case 'verification_document_approved':
+        return 'Document Approved';
+      case 'verification_document_rejected':
+        return 'Document Rejected';
+      case 'verification_document_pending':
+        return 'Document Pending';
+      case 'verification_document_uploaded_admin':
+        return 'New Document for Review';
+      case 'listing_suspended':
+        return 'Listing Suspended';
+      case 'listing_activated':
+        return 'Listing Activated';
       default:
         return 'Notification';
     }

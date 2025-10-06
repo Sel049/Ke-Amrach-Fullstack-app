@@ -50,7 +50,7 @@ const AuthenticationPage = () => {
 
 
   const getPageTitle = () => {
-    const baseTitle = 'Ke geberew Ethiopia';
+    const baseTitle = 'Keamrach Ethiopia';
     if (showResetPassword) {
       return currentLanguage === 'am' ? `ፓስዎርድ አስተካከል - ${baseTitle}` : `Reset Password - ${baseTitle}`;
     } else if (showForgotPassword) {
@@ -84,7 +84,7 @@ const AuthenticationPage = () => {
               </div>
               <div className="flex flex-col">
                 <span className="font-heading font-bold text-xl text-primary">
-                  Ke geberew
+                  Keamrach
                 </span>
                 <span className="font-caption text-xs text-text-secondary -mt-1">
                   Ethiopia
@@ -106,7 +106,7 @@ const AuthenticationPage = () => {
             {/* Welcome Section */}
             <div className="text-center mb-8">
               <h1 className="text-2xl lg:text-3xl font-bold text-text-primary mb-2">
-                {currentLanguage === 'am' ?'እንኳን ወደ Ke geberew በደህና መጡ' :'Welcome to Ke geberew'
+                {currentLanguage === 'am' ?'እንኳን ወደ Keamrach በደህና መጡ' :'Welcome to Keamrach'
                 }
               </h1>
               <p className="text-text-secondary">
@@ -171,7 +171,7 @@ const AuthenticationPage = () => {
         {/* Footer */}
         <footer className="flex-shrink-0 p-4 text-center">
           <p className="text-xs text-text-secondary">
-            © {new Date()?.getFullYear()} Ke geberew Ethiopia.
+            © {new Date()?.getFullYear()} Keamrach Ethiopia.
             {currentLanguage === 'am' ? ' ሁሉም መብቶች የተጠበቁ ናቸው።' : ' All rights reserved.'}
           </p>
         </footer>

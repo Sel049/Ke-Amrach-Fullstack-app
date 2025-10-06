@@ -15,7 +15,6 @@ const ProduceCard = ({
   currentLanguage = 'en'
 }) => {
   const navigate = useNavigate();
-  const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
 
   const translations = {
@@ -24,6 +23,7 @@ const ProduceCard = ({
       available: 'Available',
       addToCart: 'Add to Cart',
       contact: 'Contact',
+      viewDetails: 'View Details',
       rating: 'rating',
       reviews: 'reviews',
       viewReviews: 'View Reviews',
@@ -34,6 +34,7 @@ const ProduceCard = ({
       available: 'ይገኛል',
       addToCart: 'ወደ ጋሪ ጨምር',
       contact: 'ያነጋግሩ',
+      viewDetails: 'ዝርዝሮችን ይመልከቱ',
       rating: 'ደረጃ',
       reviews: 'ግምገማዎች',
       viewReviews: 'ግምገማዎችን ይመልከቱ',
@@ -45,13 +46,12 @@ const ProduceCard = ({
 
   const handleAddToCart = async () => {
     setIsAdding(true);
-    await onAddToCart(listing?.id, quantity);
+    await onAddToCart(listing?.id, 1); // Always add with quantity 1
     setIsAdding(false);
   };
 
-  const handleQuantityChange = (change) => {
-    const newQuantity = Math.max(1, Math.min(listing?.availableQuantity, quantity + change));
-    setQuantity(newQuantity);
+  const handleViewDetails = () => {
+    navigate(`/listing/${listing?.id}`);
   };
 
   const handleViewReviews = () => {
@@ -103,7 +103,7 @@ const ProduceCard = ({
           />
         </div>
 
-        {/* Verification Badge */}
+        {/* Verification Badge - only for verified farmers */}
         {listing?.farmer?.isVerified && (
           <div className="absolute top-3 left-3 bg-success text-success-foreground px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
             <Icon name="CheckCircle" size={12} />
@@ -147,36 +147,16 @@ const ProduceCard = ({
           </div>
         </div>
 
-        {/* Rating */}
-        <div className="flex items-center gap-1 mb-3">
-          <div className="flex items-center">
-            {[...Array(5)]?.map((_, i) => (
-              <Icon
-                key={i}
-                name="Star"
-                size={14}
-                className={`${
-                  i < Math.floor(listing?.farmer?.rating)
-                    ? 'text-accent fill-current' :'text-border'
-                }`}
-              />
-            ))}
-          </div>
-          <span className="text-sm text-text-secondary">
-            ({listing?.farmer?.rating}) • {listing?.farmer?.reviewCount} {t?.rating}
-          </span>
-        </div>
-
-        {/* Reviews Section */}
+        {/* Reviews / Rating (real) */}
         <div className="mb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {renderStarRating(listing?.averageRating || 0)}
+              {renderStarRating(Number(listing?.averageRating ?? listing?.farmer?.rating ?? 0))}
               <span className="text-sm text-text-secondary">
-                {listing?.reviewCount || 0} {t?.reviews}
+                {Number(listing?.reviewCount ?? listing?.farmer?.reviewCount ?? 0)} {t?.reviews}
               </span>
             </div>
-            {(listing?.reviewCount || 0) > 0 && (
+            {Number(listing?.reviewCount ?? listing?.farmer?.reviewCount ?? 0) > 0 && (
               <button
                 onClick={handleViewReviews}
                 className="text-sm text-primary hover:text-primary-dark transition-colors"
@@ -185,52 +165,23 @@ const ProduceCard = ({
               </button>
             )}
           </div>
-          {(!listing?.reviewCount || listing?.reviewCount === 0) && (
+          {Number(listing?.reviewCount ?? listing?.farmer?.reviewCount ?? 0) === 0 && (
             <p className="text-xs text-text-secondary mt-1">
               {t?.noReviews}
             </p>
           )}
         </div>
 
-        {/* Availability */}
-        <div className="flex items-center justify-between mb-4">
+        {/* Availability (freshness removed) */}
+        <div className="flex items-center justify-start mb-4">
           <div className="flex items-center gap-1">
             <Icon name="Package" size={14} className="text-success" />
             <span className="text-sm text-text-secondary">
               {listing?.availableQuantity}kg {t?.available}
             </span>
           </div>
-          <div className="flex items-center gap-1">
-            <Icon name="Clock" size={14} className="text-text-secondary" />
-            <span className="text-xs text-text-secondary">
-              {listing?.freshness}
-            </span>
-          </div>
         </div>
 
-        {/* Quantity Selector */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-sm text-text-secondary">Qty:</span>
-          <div className="flex items-center border border-border rounded-lg">
-            <button
-              onClick={() => handleQuantityChange(-1)}
-              disabled={quantity <= 1}
-              className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Icon name="Minus" size={14} />
-            </button>
-            <span className="w-12 text-center text-sm font-medium">
-              {quantity}
-            </span>
-            <button
-              onClick={() => handleQuantityChange(1)}
-              disabled={quantity >= listing?.availableQuantity}
-              className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Icon name="Plus" size={14} />
-            </button>
-          </div>
-        </div>
 
         {/* Action Buttons */}
         <div className="flex gap-2">
@@ -249,11 +200,11 @@ const ProduceCard = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onContactFarmer(listing?.farmer?.phone)}
-            iconName="Phone"
+            onClick={handleViewDetails}
+            iconName="Eye"
             iconSize={16}
           >
-            {t?.contact}
+            {t?.viewDetails}
           </Button>
         </div>
       </div>

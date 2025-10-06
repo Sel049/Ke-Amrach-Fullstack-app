@@ -53,25 +53,25 @@ const EmptyState = ({
         return {
           icon: 'Search',
           ...t?.noResults,
-          action: onClearFilters
+          actionHandler: onClearFilters
         };
       case 'no-listings':
         return {
           icon: 'Package',
           ...t?.noListings,
-          action: onRetry
+          actionHandler: onRetry
         };
       case 'error':
         return {
           icon: 'AlertCircle',
           ...t?.error,
-          action: onRetry
+          actionHandler: onRetry
         };
       default:
         return {
           icon: 'Search',
           ...t?.noResults,
-          action: onClearFilters
+          actionHandler: onClearFilters
         };
     }
   };
@@ -96,7 +96,7 @@ const EmptyState = ({
       {config?.action && (
         <Button
           variant="outline"
-          onClick={config?.action}
+          onClick={config?.actionHandler}
           iconName={type === 'error' ? 'RefreshCw' : type === 'no-listings' ? 'RefreshCw' : 'X'}
           iconPosition="left"
         >

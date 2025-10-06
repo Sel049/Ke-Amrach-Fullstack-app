@@ -136,7 +136,7 @@ const ListingReviewsPage = () => {
               <span>Back</span>
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">{listing.title}</h1>
+              <h1 className="text-2xl font-bold text-gray-800">{listing.title || listing.name}</h1>
               <p className="text-gray-600">Reviews and Ratings</p>
             </div>
           </div>
@@ -151,12 +151,18 @@ const ListingReviewsPage = () => {
               className="w-20 h-20 object-cover rounded-lg"
             />
             <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">{listing.title}</h2>
-              <p className="text-gray-600 mb-2">{listing.crop} - {listing.variety}</p>
+              <h2 className="text-lg font-semibold text-gray-800 mb-2">{listing.title || listing.name}</h2>
+              <p className="text-gray-600 mb-2">{listing.crop || listing.category}{listing.variety ? ` - ${listing.variety}` : ''}</p>
               <div className="flex items-center space-x-4 text-sm text-gray-500">
-                <span>Price: {listing.pricePerUnit} {listing.currency}/kg</span>
-                <span>Available: {listing.quantity} {listing.unit}</span>
-                <span>Location: {listing.region}, {listing.woreda}</span>
+                <span>
+                  Price: {(listing.pricePerUnit ?? listing.price_per_unit ?? listing.pricePerKg ?? listing.price) || 0} {listing.currency || 'ETB'}/kg
+                </span>
+                <span>
+                  Available: {(listing.quantity ?? listing.availableQuantity ?? 0)} {listing.unit || 'kg'}
+                </span>
+                <span>
+                  Location: {(listing.region || listing.location) || '—'}{listing.woreda ? `, ${listing.woreda}` : ''}
+                </span>
               </div>
             </div>
           </div>

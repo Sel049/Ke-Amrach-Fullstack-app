@@ -5,10 +5,13 @@ import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
+import { dashboardService } from '../../services/apiService';
+import { useLanguage } from '../../hooks/useLanguage.jsx';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const { language } = useLanguage();
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -44,28 +47,51 @@ const AdminDashboard = () => {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Simulate API calls - replace with actual API calls
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock data - replace with real API data
+      const data = await dashboardService.getAdminDashboard();
+
+      const platform = data?.platformStats || {};
+      const totalFarmers = Number(platform.total_farmers || 0);
+      const totalBuyers = Number(platform.total_buyers || 0);
+      const activeListings = Number(platform.active_listings || 0);
+      const totalOrders = Number(platform.total_orders || 0);
+      const totalRevenue = Number(platform.total_transactions || 0);
+
+      // Compute new users in last 24h from recentActivity of type 'new_user'
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const newUsersToday = Array.isArray(data?.recentActivity)
+        ? data.recentActivity.filter(a => a.type === 'new_user' && new Date(a.timestamp) >= twentyFourHoursAgo).length
+        : 0;
+
       setStats({
-        totalUsers: 1247,
-        activeListings: 2341,
-        totalOrders: 3456,
-        revenue: 125000,
-        newUsersToday: 23,
-        pendingOrders: 45,
-        verifiedFarmers: 892,
-        activeBuyers: 355
+        totalUsers: totalFarmers + totalBuyers,
+        activeListings,
+        totalOrders,
+        revenue: totalRevenue,
+        newUsersToday,
+        // Pending orders not provided by this endpoint; show 0 for now
+        pendingOrders: 0,
+        verifiedFarmers: totalFarmers, // placeholder until verification flag exists
+        activeBuyers: totalBuyers
       });
 
-      setRecentActivity([
-        { id: 1, type: 'user_registration', message: 'New farmer registered: Alemayehu Kebede', time: '5 minutes ago', icon: 'UserPlus' },
-        { id: 2, type: 'order_placed', message: 'Order #1234 placed for 50kg Teff', time: '12 minutes ago', icon: 'ShoppingCart' },
-        { id: 3, type: 'listing_approved', message: 'Listing "Organic Coffee" approved', time: '1 hour ago', icon: 'CheckCircle' },
-        { id: 4, type: 'payment_received', message: 'Payment of ETB 2,500 received', time: '2 hours ago', icon: 'DollarSign' },
-        { id: 5, type: 'user_verified', message: 'Farmer verification completed', time: '3 hours ago', icon: 'Shield' }
-      ]);
+      // Map recent activity to UI-friendly format
+      const recent = (data?.recentActivity || []).map((a, idx) => {
+        let icon = 'Activity';
+        if (a.type === 'new_user') icon = 'UserPlus';
+        else if (a.type === 'new_listing') icon = 'Package';
+        else if (a.type === 'new_order') icon = 'ShoppingCart';
+        const time = new Date(a.timestamp).toLocaleString();
+        const message = a.type === 'new_user'
+          ? `New ${a.role} registered: ${a.name}`
+          : a.type === 'new_listing'
+            ? `New listing created: ${a.name}`
+            : a.type === 'new_order'
+              ? `${a.name} placed`
+              : a.name || a.type;
+        return { id: idx + 1, type: a.type, message, time, icon };
+      });
+      setRecentActivity(recent);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -104,7 +130,7 @@ const AdminDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-                  Admin Dashboard
+                  {language === 'am' ? 'የአስተዳዳሪ ዳሽቦርድ' : 'Admin Dashboard'}
                 </h1>
                 <p className="mt-2 text-slate-600 dark:text-slate-400">
                   Welcome back, {user?.name || 'Admin'} • {new Date().toLocaleDateString('en-US', { 
@@ -123,7 +149,7 @@ const AdminDashboard = () => {
                   onClick={loadDashboardData}
                   loading={isLoading}
                 >
-                  Refresh
+                  {language === 'am' ? 'አድስ' : 'Refresh'}
                 </Button>
                 <Button
                   variant="primary"
@@ -131,7 +157,7 @@ const AdminDashboard = () => {
                   iconName="Download"
                   onClick={() => navigate('/admin-analytics')}
                 >
-                  View Analytics
+                  {language === 'am' ? 'ትንታኔዎችን ይመልከቱ' : 'View Analytics'}
                 </Button>
               </div>
             </div>
@@ -145,11 +171,11 @@ const AdminDashboard = () => {
             <Card className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Users</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ጠቅላላ ተጠቃሚዎች' : 'Total Users'}</p>
                   <p className="text-3xl font-bold text-slate-900 dark:text-white">{stats.totalUsers.toLocaleString()}</p>
                   <p className="text-xs text-green-600 dark:text-green-400 flex items-center mt-1">
                     <Icon name="TrendingUp" size={12} className="mr-1" />
-                    +{stats.newUsersToday} today
+                    +{stats.newUsersToday} {language === 'am' ? 'ዛሬ' : 'today'}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
@@ -162,10 +188,10 @@ const AdminDashboard = () => {
             <Card className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Active Listings</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ንቁ ዝርዝሮች' : 'Active Listings'}</p>
                   <p className="text-3xl font-bold text-slate-900 dark:text-white">{stats.activeListings.toLocaleString()}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {stats.verifiedFarmers} verified farmers
+                    {stats.verifiedFarmers} {language === 'am' ? 'የተረጋገጡ ገበሬዎች' : 'verified farmers'}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
@@ -178,11 +204,11 @@ const AdminDashboard = () => {
             <Card className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Orders</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ጠቅላላ ትእዛዞች' : 'Total Orders'}</p>
                   <p className="text-3xl font-bold text-slate-900 dark:text-white">{stats.totalOrders.toLocaleString()}</p>
                   <p className="text-xs text-orange-600 dark:text-orange-400 flex items-center mt-1">
                     <Icon name="Clock" size={12} className="mr-1" />
-                    {stats.pendingOrders} pending
+                    {stats.pendingOrders} {language === 'am' ? 'በመጠባበቅ ላይ' : 'pending'}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
@@ -195,11 +221,11 @@ const AdminDashboard = () => {
             <Card className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Revenue</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ጠቅላላ ገቢ' : 'Total Revenue'}</p>
                   <p className="text-3xl font-bold text-slate-900 dark:text-white">ETB {stats.revenue.toLocaleString()}</p>
                   <p className="text-xs text-green-600 dark:text-green-400 flex items-center mt-1">
                     <Icon name="DollarSign" size={12} className="mr-1" />
-                    +12% this month
+                    +12% {language === 'am' ? 'ይህ ወር' : 'this month'}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/20 rounded-lg flex items-center justify-center">
@@ -215,7 +241,7 @@ const AdminDashboard = () => {
             <div className="lg:col-span-2">
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Quick Actions</h3>
+                  <h3 className="text-xl font-semibold text-slate-900 dark:text-white">{language === 'am' ? 'ፈጣን እርምጃዎች' : 'Quick Actions'}</h3>
                   <Button variant="ghost" size="sm" iconName="MoreHorizontal" />
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -226,8 +252,8 @@ const AdminDashboard = () => {
                     <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <Icon name="Users" size={24} className="text-white" />
                     </div>
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">User Management</h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Manage users and permissions</p>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{language === 'am' ? 'የተጠቃሚ አስተዳደር' : 'User Management'}</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'ተጠቃሚዎችን እና ፍቃዶችን ያቀናብሩ' : 'Manage users and permissions'}</p>
                   </button>
 
                   <button
@@ -237,8 +263,8 @@ const AdminDashboard = () => {
                     <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <Icon name="Package" size={24} className="text-white" />
                     </div>
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Listings</h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Manage product listings</p>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{language === 'am' ? 'ዝርዝሮች' : 'Listings'}</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'የምርት ዝርዝሮችን ያቀናብሩ' : 'Manage product listings'}</p>
                   </button>
 
                   <button
@@ -248,8 +274,8 @@ const AdminDashboard = () => {
                     <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <Icon name="ShoppingCart" size={24} className="text-white" />
                     </div>
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Orders</h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Track and manage orders</p>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{language === 'am' ? 'ትእዛዞች' : 'Orders'}</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'ትእዛዞችን ይከታተሉ እና ያቀናብሩ' : 'Track and manage orders'}</p>
                   </button>
 
                   <button
@@ -259,8 +285,8 @@ const AdminDashboard = () => {
                     <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <Icon name="BarChart3" size={24} className="text-white" />
                     </div>
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Analytics</h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">View reports and insights</p>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{language === 'am' ? 'ትንታኔ' : 'Analytics'}</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'ሪፖርቶችን እና ግንዛቤዎችን ይመልከቱ' : 'View reports and insights'}</p>
                   </button>
 
                   <button
@@ -270,8 +296,19 @@ const AdminDashboard = () => {
                     <div className="w-12 h-12 bg-gray-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <Icon name="Settings" size={24} className="text-white" />
                     </div>
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Settings</h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">System configuration</p>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{language === 'am' ? 'ቅንብሮች' : 'Settings'}</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'የስርዓት ቅንብር' : 'System configuration'}</p>
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/admin-verification')}
+                    className="group p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 rounded-xl hover:from-indigo-100 hover:to-indigo-200 dark:hover:from-indigo-900/30 dark:hover:to-indigo-800/30 transition-all duration-200 hover:scale-105"
+                  >
+                    <div className="w-12 h-12 bg-indigo-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <Icon name="Shield" size={24} className="text-white" />
+                    </div>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{language === 'am' ? 'ማረጋገጫ' : 'Verification'}</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'ሰነዶችን ያረጋግጡ' : 'Review verification documents'}</p>
                   </button>
 
                   <button
@@ -281,8 +318,8 @@ const AdminDashboard = () => {
                     <div className="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <Icon name="Bell" size={24} className="text-white" />
                     </div>
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Notifications</h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">System alerts and updates</p>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{language === 'am' ? 'ማስታወቂያዎች' : 'Notifications'}</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'የስርዓት ማስጠንቀቂያዎች እና እድሳት' : 'System alerts and updates'}</p>
                   </button>
                 </div>
               </Card>
@@ -293,7 +330,7 @@ const AdminDashboard = () => {
               {/* Recent Activity */}
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{language === 'am' ? 'ቅርብ እንቅስቃሴ' : 'Recent Activity'}</h3>
                   <Button variant="ghost" size="sm" onClick={() => navigate('/admin-orders')}>
                     View All
                   </Button>
@@ -315,21 +352,21 @@ const AdminDashboard = () => {
 
               {/* System Health */}
               <Card className="p-6">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">System Health</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">{language === 'am' ? 'የስርዓት ጤና' : 'System Health'}</h3>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-slate-400">Status</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'ሁኔታ' : 'Status'}</span>
                     <span className="flex items-center text-sm font-medium text-green-600 dark:text-green-400">
                       <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                       {systemHealth.status}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-slate-400">Uptime</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'የሚሰራበት ሰዓት' : 'Uptime'}</span>
                     <span className="text-sm font-medium text-slate-900 dark:text-white">{systemHealth.uptime}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-slate-400">Last Backup</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">{language === 'am' ? 'የመጨረሻ ቅጂ' : 'Last Backup'}</span>
                     <span className="text-sm font-medium text-slate-900 dark:text-white">{systemHealth.lastBackup}</span>
                   </div>
                 </div>

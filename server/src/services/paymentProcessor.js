@@ -1,12 +1,14 @@
-const crypto = require('crypto');
-const db = require('../config/database');
+import crypto from 'crypto';
+import { pool } from '../config/database.js';
+import FraudDetection from './fraudDetection.js';
+import PaymentAnalytics from './paymentAnalytics.js';
 
 class PaymentProcessor {
   constructor() {
     this.bankConfigs = this.initializeBankConfigs();
     this.mobileProviderConfigs = this.initializeMobileProviderConfigs();
-    this.fraudDetection = new (require('./fraudDetection'))();
-    this.analytics = new (require('./paymentAnalytics'))();
+    this.fraudDetection = new FraudDetection();
+    this.analytics = new PaymentAnalytics();
   }
 
   // Initialize bank configurations with realistic data
@@ -474,7 +476,7 @@ class PaymentProcessor {
   // Get payment method from database
   async getPaymentMethod(paymentMethodId) {
     try {
-      const [rows] = await db.execute(
+      const [rows] = await pool.execute(
         'SELECT * FROM payment_methods WHERE id = ? AND is_active = 1',
         [paymentMethodId]
       );
@@ -496,7 +498,7 @@ class PaymentProcessor {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
       `;
 
-      const [result] = await db.execute(query, [
+      const [result] = await pool.execute(query, [
         paymentData.userId,
         paymentData.paymentMethodId,
         paymentData.amount,
@@ -543,7 +545,7 @@ class PaymentProcessor {
   // Get payment status
   async getPaymentStatus(paymentId) {
     try {
-      const [rows] = await db.execute(
+      const [rows] = await pool.execute(
         'SELECT * FROM payments WHERE payment_id = ?',
         [paymentId]
       );
@@ -610,4 +612,4 @@ class PaymentProcessor {
   }
 }
 
-module.exports = PaymentProcessor;
+export default PaymentProcessor;

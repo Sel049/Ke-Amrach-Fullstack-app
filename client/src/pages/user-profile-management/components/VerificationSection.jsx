@@ -1,75 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
+import { verificationService } from '../../../services/apiService';
 
 
 const VerificationSection = ({ userRole, currentLanguage }) => {
   const [uploadingDoc, setUploadingDoc] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [summary, setSummary] = useState({
+    total: 0,
+    uploaded: 0,
+    verified: 0,
+    pending: 0,
+    rejected: 0,
+    requiredVerified: 0,
+    totalRequired: 0
+  });
 
-  const verificationDocuments = {
-    farmer: [
-      {
-        id: 'national-id',
-        name: 'National ID',
-        nameAm: 'መታወቂያ ካርድ',
-        status: 'verified',
-        uploadDate: '2024-01-15',
-        required: true
-      },
-      {
-        id: 'land-certificate',
-        name: 'Land Use Certificate',
-        nameAm: 'የመሬት ይዞታ ሰርተፊኬት',
-        status: 'verified',
-        uploadDate: '2024-01-16',
-        required: true
-      },
-      {
-        id: 'organic-certificate',
-        name: 'Organic Certification',
-        nameAm: 'የኦርጋኒክ ሰርተፊኬት',
-        status: 'pending',
-        uploadDate: '2024-01-20',
-        required: false
-      },
-      {
-        id: 'cooperative-membership',
-        name: 'Cooperative Membership',
-        nameAm: 'የህብረት ስራ አባልነት',
-        status: 'not-uploaded',
-        uploadDate: null,
-        required: false
+  // Load documents from API
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        setLoading(true);
+        const data = await verificationService.getDocuments();
+        setDocuments(data.documents || []);
+        setSummary(data.summary || summary);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load verification documents:', err);
+        setError('Failed to load documents');
+        // Fallback to empty array
+        setDocuments([]);
+      } finally {
+        setLoading(false);
       }
-    ],
-    buyer: [
-      {
-        id: 'national-id',
-        name: 'National ID',
-        nameAm: 'መታወቂያ ካርድ',
-        status: 'verified',
-        uploadDate: '2024-02-10',
-        required: true
-      },
-      {
-        id: 'business-license',
-        name: 'Business License',
-        nameAm: 'የንግድ ፈቃድ',
-        status: 'not-uploaded',
-        uploadDate: null,
-        required: false
-      },
-      {
-        id: 'tax-certificate',
-        name: 'Tax Registration Certificate',
-        nameAm: 'የግብር ምዝገባ ሰርተፊኬት',
-        status: 'not-uploaded',
-        uploadDate: null,
-        required: false
-      }
-    ]
-  };
+    };
 
-  const documents = verificationDocuments?.[userRole];
+    loadDocuments();
+  }, [userRole]);
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -109,15 +79,46 @@ const VerificationSection = ({ userRole, currentLanguage }) => {
     );
   };
 
-  const handleFileUpload = (docId, event) => {
+  const handleFileUpload = async (docId, event) => {
     const file = event?.target?.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert(currentLanguage === 'en' ? 'File size must be less than 5MB' : 'የፋይል መጠን ከ5MB በታች መሆን አለበት');
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      alert(currentLanguage === 'en' ? 'Only PDF, JPG, and PNG files are allowed' : 'PDF፣ JPG እና PNG ፋይሎች ብቻ ተቀባይነት አላቸው');
+      return;
+    }
+
+    try {
       setUploadingDoc(docId);
-      // Simulate upload process
-      setTimeout(() => {
-        setUploadingDoc(null);
-        // Update document status logic here
-      }, 2000);
+      
+      // Find document info
+      const doc = documents.find(d => d.id === docId);
+      const documentName = doc ? (currentLanguage === 'am' ? doc.nameAm : doc.name) : file.name;
+      
+      // Upload document
+      await verificationService.uploadDocument(docId, documentName, file);
+      
+      // Reload documents to get updated status
+      const data = await verificationService.getDocuments();
+      setDocuments(data.documents || []);
+      setSummary(data.summary || summary);
+      
+      alert(currentLanguage === 'en' ? 'Document uploaded successfully!' : 'ሰነድ በተሳካ ሁኔታ ተላክ!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert(currentLanguage === 'en' ? 'Failed to upload document. Please try again.' : 'ሰነድ መላክ አልተሳካም። እባክዎ እንደገና ይሞክሩ።');
+    } finally {
+      setUploadingDoc(null);
+      // Clear the file input
+      event.target.value = '';
     }
   };
 
@@ -149,27 +150,58 @@ const VerificationSection = ({ userRole, currentLanguage }) => {
             {getLabel('Verification Progress', 'የማረጋገጫ ሂደት')}
           </span>
           <span className="text-sm font-bold text-primary">
-            {Math.round((documents?.filter(doc => doc?.status === 'verified' && doc?.required)?.length / documents?.filter(doc => doc?.required)?.length) * 100)}%
+            {summary.totalRequired > 0 ? Math.round((summary.requiredVerified / summary.totalRequired) * 100) : 0}%
           </span>
         </div>
         <div className="w-full bg-muted rounded-full h-2">
           <div 
             className="bg-primary h-2 rounded-full transition-all duration-300"
             style={{ 
-              width: `${(documents?.filter(doc => doc?.status === 'verified' && doc?.required)?.length / documents?.filter(doc => doc?.required)?.length) * 100}%` 
+              width: `${summary.totalRequired > 0 ? (summary.requiredVerified / summary.totalRequired) * 100 : 0}%` 
             }}
           ></div>
         </div>
         <p className="text-xs text-text-secondary mt-2">
           {getLabel(
-            `${documents?.filter(doc => doc?.status === 'verified' && doc?.required)?.length} of ${documents?.filter(doc => doc?.required)?.length} required documents verified`,
-            `${documents?.filter(doc => doc?.status === 'verified' && doc?.required)?.length} ከ ${documents?.filter(doc => doc?.required)?.length} የሚያስፈልጉ ሰነዶች ተረጋግጠዋል`
+            `${summary.requiredVerified} of ${summary.totalRequired} required documents verified`,
+            `${summary.requiredVerified} ከ ${summary.totalRequired} የሚያስፈልጉ ሰነዶች ተረጋግጠዋል`
           )}
         </p>
+        {summary.pending > 0 && (
+          <p className="text-xs text-warning mt-1">
+            {getLabel(
+              `${summary.pending} documents pending review`,
+              `${summary.pending} ሰነዶች በመጠባበቅ ላይ`
+            )}
+          </p>
+        )}
       </div>
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-8">
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-text-secondary">
+              {getLabel('Loading documents...', 'ሰነዶችን በመጫን ላይ...')}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="p-4 bg-error/10 border border-error/20 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <Icon name="AlertCircle" size={16} className="text-error" />
+            <span className="text-error text-sm">{error}</span>
+          </div>
+        </div>
+      )}
+
       {/* Documents List */}
-      <div className="space-y-4">
-        {documents?.map((doc) => (
+      {!loading && !error && (
+        <div className="space-y-4">
+          {documents?.map((doc) => (
           <div key={doc?.id} className="border border-border rounded-lg p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">
@@ -192,12 +224,13 @@ const VerificationSection = ({ userRole, currentLanguage }) => {
               </div>
               
               <div className="flex items-center space-x-2">
-                {doc?.status === 'verified' && (
+                {(doc?.status === 'verified' || doc?.status === 'pending' || doc?.status === 'rejected') && doc?.filePath && (
                   <Button
                     variant="ghost"
                     size="sm"
                     iconName="Eye"
                     iconPosition="left"
+                    onClick={() => window.open(doc.filePath, '_blank')}
                   >
                     {getLabel('View', 'ይመልከቱ')}
                   </Button>
@@ -281,8 +314,9 @@ const VerificationSection = ({ userRole, currentLanguage }) => {
               </div>
             )}
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       {/* Upload Guidelines */}
       <div className="mt-6 p-4 bg-muted rounded-lg">
         <h4 className="font-medium text-text-primary mb-2">

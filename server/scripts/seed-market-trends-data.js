@@ -1,4 +1,4 @@
-const { pool } = require('./src/config/database.js');
+const { pool } = require('../src/config/database.js');
 
 // Comprehensive market trends data seeding script
 const seedMarketTrendsData = async () => {

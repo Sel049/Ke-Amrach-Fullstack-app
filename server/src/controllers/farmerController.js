@@ -15,6 +15,21 @@ export const getFarmerMetrics = async (req, res) => {
   try {
     const farmerId = req.user.uid;
 
+    // Get user role and verify farmer access
+    const [userRows] = await pool.query(
+      "SELECT role FROM users WHERE firebase_uid = ?",
+      [farmerId]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userRole = userRows[0].role;
+    if (userRole !== 'farmer') {
+      return res.status(403).json({ error: "Access denied. Farmer role required." });
+    }
+
     // Get active listings count
     let listingsCount = 0;
     try {
@@ -117,6 +132,21 @@ export const getFarmerMetrics = async (req, res) => {
 export const getFarmerListings = async (req, res) => {
   try {
     const farmerId = req.user.uid;
+
+    // Get user role and verify farmer access
+    const [userRows] = await pool.query(
+      "SELECT role FROM users WHERE firebase_uid = ?",
+      [farmerId]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userRole = userRows[0].role;
+    if (userRole !== 'farmer') {
+      return res.status(403).json({ error: "Access denied. Farmer role required." });
+    }
     const limit = parseInt(req.query.limit) || 10;
     const status = req.query.status; // Filter by status
 
@@ -195,7 +225,15 @@ export const getFarmerListings = async (req, res) => {
           if (!imagesByListing[img.listing_id]) {
             imagesByListing[img.listing_id] = [];
           }
-          imagesByListing[img.listing_id].push(img.url);
+          const base = `${req.protocol}://${req.get('host')}`;
+          const normalized = /^https?:\/\//i.test(img.url)
+            ? img.url
+            : img.url?.startsWith('/uploads/')
+              ? `${base}${img.url}`
+              : img.url?.startsWith('uploads/')
+                ? `${base}/${img.url}`
+                : img.url;
+          imagesByListing[img.listing_id].push(normalized);
         });
       }
     }
@@ -223,7 +261,7 @@ export const getFarmerListings = async (req, res) => {
         id: listing.id,
         name: listing.name || listing.title,
         nameAm: listing.name_am || null,
-        image: listingImages[0] || listing.image || "https://images.pexels.com/photos/4110404/pexels-photo-4110404.jpeg",
+        image: listingImages[0] || listing.image || null,
         images: listingImages, // All images
         pricePerKg: listing.pricePerUnit,
         availableQuantity: listing.quantity,
@@ -293,6 +331,21 @@ export const getFarmerOrders = async (req, res) => {
 export const getFarmerRecentActivity = async (req, res) => {
   try {
     const farmerId = req.user.uid;
+
+    // Get user role and verify farmer access
+    const [userRows] = await pool.query(
+      "SELECT role FROM users WHERE firebase_uid = ?",
+      [farmerId]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userRole = userRows[0].role;
+    if (userRole !== 'farmer') {
+      return res.status(403).json({ error: "Access denied. Farmer role required." });
+    }
     const limit = parseInt(req.query.limit) || 10;
 
     // Get recent orders only (skip reviews for now since table doesn't exist)
@@ -394,8 +447,9 @@ export const createFarmerListing = async (req, res) => {
 
     // Create the listing (support both new and legacy schemas)
     let result;
+    let useNewSchema = false;
     try {
-      const useNewSchema = await columnExists('produce_listings', 'farmer_user_id');
+      useNewSchema = await columnExists('produce_listings', 'farmer_user_id');
       console.log('Using schema:', useNewSchema ? 'new' : 'legacy');
       
       if (useNewSchema) {
@@ -528,7 +582,7 @@ export const createFarmerListing = async (req, res) => {
       id: createdListing.id,
       name: createdListing.title,
       nameAm: null,
-      image: createdListing.image || "https://images.pexels.com/photos/4110404/pexels-photo-4110404.jpeg",
+      image: createdListing.image || null,
       pricePerKg: createdListing.pricePerUnit,
       availableQuantity: createdListing.quantity,
       location: createdListing.woreda ? `${createdListing.region}, ${createdListing.woreda}` : createdListing.region,
@@ -954,6 +1008,48 @@ export const bulkDeleteListings = async (req, res) => {
   }
 };
 
+// Delete a single listing owned by the current farmer
+export const deleteFarmerListing = async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const { id } = req.params;
+
+    // Resolve farmer's DB id
+    const [farmerRows] = await pool.query(
+      'SELECT id FROM users WHERE firebase_uid = ? LIMIT 1',
+      [uid]
+    );
+    if (farmerRows.length === 0) {
+      return res.status(404).json({ error: 'Farmer not found' });
+    }
+    const farmerDbId = farmerRows[0].id;
+
+    // Ensure listing belongs to farmer (supports both schemas). Guard missing legacy column.
+    const hasLegacyFarmerId = await columnExists('produce_listings', 'farmer_id');
+    const whereOwnership = hasLegacyFarmerId
+      ? ' (farmer_user_id = ? OR farmer_id = ?) '
+      : ' (farmer_user_id = ?) ';
+    const params = hasLegacyFarmerId ? [id, farmerDbId, farmerDbId] : [id, farmerDbId];
+    const [rows] = await pool.query(
+      `SELECT id FROM produce_listings WHERE id = ? AND ${whereOwnership}`,
+      params
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found or not authorized' });
+    }
+
+    // Delete images first
+    await pool.query('DELETE FROM listing_images WHERE listing_id = ?', [id]);
+    // Delete listing
+    await pool.query('DELETE FROM produce_listings WHERE id = ?', [id]);
+
+    return res.json({ message: 'Listing deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting farmer listing:', error);
+    res.status(500).json({ error: 'Failed to delete listing' });
+  }
+};
+
 // Add image to a specific listing
 export const addListingImage = async (req, res) => {
   try {
@@ -962,12 +1058,18 @@ export const addListingImage = async (req, res) => {
     const file = req.file;
     const { url } = req.body;
 
-    console.log('addListingImage called with:', {
+    console.log('=== addListingImage DEBUG ===');
+    console.log('Request details:', {
       uid,
       listingId,
       hasFile: !!file,
       hasUrl: !!url,
-      url: url
+      url: url,
+      body: req.body,
+      headers: {
+        contentType: req.headers['content-type'],
+        authorization: req.headers.authorization ? 'present' : 'missing'
+      }
     });
 
     // Get user ID
@@ -988,10 +1090,25 @@ export const addListingImage = async (req, res) => {
     }
 
     // Verify user owns the listing (check both old and new schema)
-    const [listings] = await pool.query(
-      "SELECT * FROM produce_listings WHERE id = ? AND (farmer_user_id = ? OR farmer_id = ?)",
-      [listingId, userId, userId]
-    );
+    const hasNewFarmerCol = await columnExists('produce_listings', 'farmer_user_id');
+    const hasOldFarmerCol = await columnExists('produce_listings', 'farmer_id');
+    
+    let listings;
+    if (hasNewFarmerCol) {
+      // Use new schema
+      [listings] = await pool.query(
+        "SELECT * FROM produce_listings WHERE id = ? AND farmer_user_id = ?",
+        [listingId, userId]
+      );
+    } else if (hasOldFarmerCol) {
+      // Use old schema
+      [listings] = await pool.query(
+        "SELECT * FROM produce_listings WHERE id = ? AND farmer_id = ?",
+        [listingId, userId]
+      );
+    } else {
+      return res.status(500).json({ error: "Database schema error: no farmer column found" });
+    }
 
     if (listings.length === 0) {
       return res.status(404).json({ error: "Listing not found or not authorized" });
@@ -1000,12 +1117,17 @@ export const addListingImage = async (req, res) => {
     // Determine image URL - either from file upload or direct URL
     let imageUrl;
     if (file) {
-      imageUrl = file.path;
+      // Store a public URL that matches how the server serves files
+      const base = `${req.protocol}://${req.get('host')}`;
+      const filename = file.filename || (file.path ? file.path.split(/[\\/]/).pop() : null);
+      imageUrl = filename ? `${base}/uploads/${filename}` : `${base}/uploads/${file.originalname}`;
     } else if (url) {
       imageUrl = url;
     } else {
       return res.status(400).json({ error: "No image file or URL provided" });
     }
+
+    console.log('Image URL determined:', imageUrl);
 
     // Check if listing_images table exists and is accessible
     try {
@@ -1041,14 +1163,20 @@ export const addListingImage = async (req, res) => {
     });
     
     try {
-      await pool.query(
+      const [insertResult] = await pool.query(
         "INSERT INTO listing_images (listing_id, url, sort_order) VALUES (?, ?, ?)",
         [listingId, imageUrl, nextSortOrder]
       );
 
-      console.log('Image successfully inserted into database with sort_order:', nextSortOrder);
+      console.log('Image successfully inserted into database with sort_order:', nextSortOrder, 'Insert ID:', insertResult.insertId);
     } catch (insertError) {
       console.error('Failed to insert image into database:', insertError);
+      console.error('Insert error details:', {
+        code: insertError.code,
+        errno: insertError.errno,
+        sqlState: insertError.sqlState,
+        sqlMessage: insertError.sqlMessage
+      });
       throw new Error(`Database error: ${insertError.message}`);
     }
 

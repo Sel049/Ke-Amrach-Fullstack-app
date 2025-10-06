@@ -4,7 +4,8 @@ import {
   getBuyerDashboard,
   getFarmerDashboard,
   getAdminDashboard,
-  getAnalyticsData
+  getAnalyticsData,
+  getAdminAnalytics
 } from "../controllers/dashboardController.js";
 
 const router = Router();
@@ -19,6 +20,9 @@ router.get('/admin', getAdminDashboard);
 
 // Analytics data for charts
 router.get('/analytics', getAnalyticsData);
+
+// Admin analytics data
+router.get('/admin/analytics', getAdminAnalytics);
 
 export default router;
 

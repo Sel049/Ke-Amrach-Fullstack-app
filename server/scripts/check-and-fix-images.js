@@ -3,7 +3,7 @@
  * Check and fix listing images in the database
  */
 
-import { pool } from './src/config/database.js';
+import { pool } from '../src/config/database.js';
 
 async function checkAndFixImages() {
   try {

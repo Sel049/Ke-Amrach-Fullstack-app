@@ -27,14 +27,20 @@ const AuthenticatedTopBar = () => {
   };
 
   const role = user?.role || localStorage.getItem('userRole') || 'buyer';
-  const displayRoleName = role === 'farmer'
-    ? (language === 'am' ? 'ገበሬ' : 'Farmer')
-    : (language === 'am' ? 'ገዢ' : 'Buyer');
+  const displayRoleName = role === 'admin'
+    ? (language === 'am' ? 'አድሚን' : 'Admin')
+    : role === 'farmer'
+      ? (language === 'am' ? 'ገበሬ' : 'Farmer')
+      : (language === 'am' ? 'ገዢ' : 'Buyer');
   const avatarNode = user?.avatarUrl ? (
     <img src={user?.avatarUrl} alt={user?.fullName || 'User'} className="object-cover w-full h-full" />
   ) : (
-    <div className={`w-full h-full flex items-center justify-center ${role === 'farmer' ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
-      <Icon name={role === 'farmer' ? 'Sprout' : 'ShoppingCart'} size={16} className={`${role === 'farmer' ? 'text-emerald-700' : 'text-indigo-700'}`} />
+    <div className={`w-full h-full flex items-center justify-center ${role === 'admin' ? 'bg-gray-100' : role === 'farmer' ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
+      <Icon
+        name={role === 'admin' ? 'Shield' : role === 'farmer' ? 'Sprout' : 'ShoppingCart'}
+        size={16}
+        className={`${role === 'admin' ? 'text-black' : role === 'farmer' ? 'text-emerald-700' : 'text-indigo-700'}`}
+      />
     </div>
   );
 
@@ -45,7 +51,7 @@ const AuthenticatedTopBar = () => {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Icon name="Sprout" size={18} color="white" />
           </div>
-          <span className="text-sm font-semibold text-primary">Ke Geberew</span>
+          <span className="text-sm font-semibold text-primary">Keamrach</span>
         </div>
 
         <div className="flex items-center space-x-3">

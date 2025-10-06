@@ -178,7 +178,7 @@ export const getFavoriteListings = async (req, res) => {
     }
     const offset = (page - 1) * limit;
 
-    // Get favorite listings with details
+    // Get favorite listings with details, images, and farmer avatar
     const [favorites] = await pool.query(
       `SELECT
         f.id as favorite_id,
@@ -190,13 +190,17 @@ export const getFavoriteListings = async (req, res) => {
         u.woreda as farmer_woreda,
         fp.farm_name,
         fp.experience_years,
-        fp.certifications
+        fp.certifications,
+        li.url as image_url,
+        ua.url as farmer_avatar
       FROM favorites f
       JOIN produce_listings l ON f.listing_id = l.id
       JOIN users u ON l.farmer_user_id = u.id
       LEFT JOIN farmer_profiles fp ON u.id = fp.user_id
+      LEFT JOIN listing_images li ON l.id = li.listing_id
+      LEFT JOIN user_avatars ua ON u.id = ua.user_id
       WHERE f.buyer_user_id = ? AND l.status = 'active'
-      ORDER BY f.created_at DESC
+      ORDER BY f.created_at DESC, li.created_at ASC
       LIMIT ? OFFSET ?`,
       [userId, parseInt(limit), offset]
     );
@@ -213,8 +217,33 @@ export const getFavoriteListings = async (req, res) => {
     const total = countResult[0].total;
     const totalPages = Math.ceil(total / limit);
 
+    // Group favorites by listing ID and get the first image for each
+    const favoritesMap = new Map();
+    favorites.forEach(fav => {
+      if (!favoritesMap.has(fav.id)) {
+        favoritesMap.set(fav.id, {
+          ...fav,
+          image: fav.image_url || null,
+          farmer: {
+            name: fav.farmer_name,
+            avatar: fav.farmer_avatar || '/public/assets/images/no_image.png',
+            location: fav.farmer_region,
+            phone: fav.farmer_phone,
+            farmName: fav.farm_name,
+            experienceYears: fav.experience_years,
+            certifications: fav.certifications,
+            rating: 4.5, // Default rating
+            reviewCount: 0, // Default review count
+            isVerified: !!fav.certifications
+          }
+        });
+      }
+    });
+
+    const processedFavorites = Array.from(favoritesMap.values());
+
     res.json({
-      favorites,
+      favorites: processedFavorites,
       pagination: {
         currentPage: parseInt(page),
         totalPages,

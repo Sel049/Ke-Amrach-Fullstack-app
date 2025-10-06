@@ -71,6 +71,20 @@ export const AuthProvider = ({ children }) => {
       setToken(localStorage.getItem('authToken'));
       setIsAuthenticated(true);
       setError(null);
+      
+      // Sync user data immediately after dev login
+      try {
+        await authService.syncUser();
+        const me = await userService.getMe();
+        if (me) {
+          setUser(me);
+          localStorage.setItem('userData', JSON.stringify(me));
+          if (me.role) localStorage.setItem('userRole', me.role);
+        }
+      } catch (error) {
+        console.log('Background sync failed:', error);
+      }
+      
       console.log('Dev mode login successful');
       return { success: true, user: devUserData };
     }
@@ -85,11 +99,33 @@ export const AuthProvider = ({ children }) => {
         setToken(response.devToken);
         setIsAuthenticated(true);
 
+        // If Firebase is active, sign out to avoid mixed tokens during dev login
+        try {
+          const { auth } = await import('../firebase');
+          if (auth && auth.currentUser) {
+            const { signOut } = await import('firebase/auth');
+            await signOut(auth);
+          }
+        } catch (_) {}
+
         // Store in localStorage
         localStorage.setItem('authToken', response.devToken);
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('userData', JSON.stringify(response.user));
         localStorage.setItem('userRole', response.user.role);
+
+        // Sync user data immediately after login
+        try {
+          await authService.syncUser();
+          const me = await userService.getMe();
+          if (me) {
+            setUser(me);
+            localStorage.setItem('userData', JSON.stringify(me));
+            if (me.role) localStorage.setItem('userRole', me.role);
+          }
+        } catch (error) {
+          console.log('Background sync failed:', error);
+        }
 
         return { success: true, user: response.user };
       } else {

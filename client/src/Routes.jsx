@@ -16,6 +16,7 @@ import BrowseListingsBuyerHome from './pages/browse-listings-buyer-home';
 import BuyerDashboard from './pages/dashboard-buyer-home';
 import AddListing from './pages/add-listing';
 import ListingReviewsPage from './pages/listing-reviews';
+import ListingDetailsPage from './pages/listing-details';
 import FarmerReviews from './pages/reviews/FarmerReviews.jsx';
 import NotificationsPage from './pages/notifications';
 import FarmerMyListings from './pages/farmer-my-listings';
@@ -34,7 +35,8 @@ import AdminListings from './pages/admin-listings';
 import AdminOrders from './pages/admin-orders';
 import AdminAnalytics from './pages/admin-analytics';
 import AdminSettings from './pages/admin-settings';
-import DevMode from './components/DevMode.jsx';
+import AdminVerification from './pages/admin-verification';
+// DevMode removed
 
 const RoleRedirect = () => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -141,6 +143,11 @@ const Routes = () => {
             <AddListing />
           </ProtectedRoute>
         } />
+        <Route path="/listing/:id" element={
+          <ProtectedRoute requiredRole="buyer">
+            <ListingDetailsPage />
+          </ProtectedRoute>
+        } />
         <Route path="/listing/:id/reviews" element={
           <ProtectedRoute requiredRole="buyer">
             <ListingReviewsPage />
@@ -203,11 +210,16 @@ const Routes = () => {
             <AdminSettings />
           </ProtectedRoute>
         } />
+        <Route path="/admin-verification" element={
+          <ProtectedRoute requiredRole="admin">
+            <AdminVerification />
+          </ProtectedRoute>
+        } />
 
         {/* 404 */}
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
-      <DevMode />
+      {/* DevMode removed */}
       </ErrorBoundary>
     </BrowserRouter>
   );

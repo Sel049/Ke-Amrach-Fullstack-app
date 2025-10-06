@@ -1,14 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
 import Button from '../../../components/ui/Button';
+import { reviewService } from '../../../services/apiService';
 
 const ProfileHeader = ({ userRole, currentLanguage, onEditPhoto, user }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [rating, setRating] = useState(user?.rating || '-');
 
   const displayName = user?.fullName || (currentLanguage === 'am' ? 'ያልተሰየመ' : 'Unnamed User');
   const displayLocation = user?.region && user?.woreda ? `${user.woreda}, ${user.region}` : (currentLanguage === 'am' ? 'አካባቢ የለም' : 'No location');
   const avatar = user?.avatarUrl || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayName);
+
+  // Format average rating similar to Reviews page (strip trailing .0)
+  const formatAverage = (value) => {
+    const n = Number(value);
+    if (Number.isNaN(n)) return '-';
+    const fixed = Number(n.toFixed(1));
+    return (fixed % 1 === 0) ? String(Math.trunc(fixed)) : String(fixed);
+  };
+
+  // Get rating using same method as Reviews section
+  useEffect(() => {
+    const loadRating = async () => {
+      if (userRole !== 'farmer' || !user?.id) return;
+      
+      try {
+        const revRes = await reviewService.getFarmerReviews(user.id, { limit: 50 });
+        const farmerStats = revRes?.farmerStats || {};
+        let avg = farmerStats.avg_rating;
+        if (avg === undefined || avg === null) {
+          const reviews = revRes?.reviews || [];
+          const nums = reviews.map(r => Number(r?.rating)).filter(n => !Number.isNaN(n));
+          if (nums.length) avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+        }
+        if ((typeof avg === 'number' && !Number.isNaN(avg)) || (typeof avg === 'string' && avg !== '')) {
+          setRating(formatAverage(avg));
+        } else {
+          setRating('-');
+        }
+      } catch (error) {
+        console.error('Failed to load rating:', error);
+        setRating('-');
+      }
+    };
+
+    loadRating();
+  }, [userRole, user?.id]);
 
   const getVerificationBadge = () => {
     const isVerified = user?.verificationStatus === 'verified';
@@ -43,6 +81,24 @@ const ProfileHeader = ({ userRole, currentLanguage, onEditPhoto, user }) => {
           ? (userRole === 'farmer' ? 'ገበሬ' : 'ገዢ')
           : (userRole === 'farmer' ? 'Farmer' : 'Buyer')
         }
+      </div>
+    );
+  };
+
+  const renderStarRating = (rating) => {
+    const numRating = typeof rating === 'number' ? rating : parseFloat(rating);
+    if (isNaN(numRating) || numRating === 0) return null;
+    
+    return (
+      <div className="flex items-center space-x-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Icon
+            key={star}
+            name="Star"
+            size={12}
+            className={star <= numRating ? 'text-warning fill-current' : 'text-muted'}
+          />
+        ))}
       </div>
     );
   };
@@ -82,27 +138,48 @@ const ProfileHeader = ({ userRole, currentLanguage, onEditPhoto, user }) => {
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4 w-full">
-            <div className="text-center">
-              <div className="flex items-center justify-center space-x-1 mb-1">
-                <Icon name="Star" size={16} className="text-accent fill-current" />
-                <span className="font-bold text-text-primary">{user?.rating}</span>
-              </div>
-              <span className="text-xs text-text-secondary">
-                {currentLanguage === 'am' ? 'ደረጃ' : 'Rating'}
-              </span>
-            </div>
-            <div className="text-center">
-              <div className="font-bold text-text-primary mb-1">{user?.completionRate}%</div>
-              <span className="text-xs text-text-secondary">
-                {currentLanguage === 'am' ? 'ማጠናቀቅ' : 'Completion'}
-              </span>
-            </div>
-            <div className="text-center">
-              <div className="font-bold text-text-primary mb-1">{user?.totalOrders}</div>
-              <span className="text-xs text-text-secondary">
-                {currentLanguage === 'am' ? 'ትዕዛዞች' : 'Orders'}
-              </span>
-            </div>
+            {userRole === 'farmer' ? (
+              <>
+                <div className="text-center">
+                  <div className="flex items-center justify-center space-x-1 mb-1">
+                    <Icon name="Star" size={16} className="text-accent fill-current" />
+                    <span className="font-bold text-text-primary">{rating}</span>
+                  </div>
+                  <span className="text-xs text-text-secondary">
+                    {currentLanguage === 'am' ? 'ደረጃ' : 'Rating'}
+                  </span>
+                </div>
+                <div className="text-center">
+                  <div className="font-bold text-text-primary mb-1">{user?.completionRate ?? 0}%</div>
+                  <span className="text-xs text-text-secondary">
+                    {currentLanguage === 'am' ? 'ማጠናቀቅ' : 'Completion'}
+                  </span>
+                </div>
+                <div className="text-center">
+                  <div className="font-bold text-text-primary mb-1">{user?.totalOrders ?? 0}</div>
+                  <span className="text-xs text-text-secondary">
+                    {currentLanguage === 'am' ? 'ትዕዛዞች' : 'Orders'}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-center">
+                  <div className="font-bold text-text-primary mb-1">{user?.completionRate ?? 0}%</div>
+                  <span className="text-xs text-text-secondary">
+                    {currentLanguage === 'am' ? 'ማጠናቀቅ' : 'Completion'}
+                  </span>
+                </div>
+                <div className="text-center">
+                  <div className="font-bold text-text-primary mb-1">{user?.totalOrders ?? 0}</div>
+                  <span className="text-xs text-text-secondary">
+                    {currentLanguage === 'am' ? 'ትዕዛዞች' : 'Orders'}
+                  </span>
+                </div>
+                {/* keep grid alignment by rendering empty cell */}
+                <div className="text-center"></div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -151,38 +228,60 @@ const ProfileHeader = ({ userRole, currentLanguage, onEditPhoto, user }) => {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-4 gap-6">
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <div className="flex items-center justify-center space-x-1 mb-2">
-                  <Icon name="Star" size={18} className="text-accent fill-current" />
-                  <span className="text-xl font-bold text-text-primary">{user?.rating}</span>
-                </div>
-                <span className="text-sm text-text-secondary">
-                  {currentLanguage === 'am' ? 'አማካይ ደረጃ' : 'Average Rating'}
-                </span>
-              </div>
+              {userRole === 'farmer' ? (
+                <>
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <div className="flex items-center justify-center space-x-1 mb-2">
+                      <Icon name="Star" size={18} className="text-accent fill-current" />
+                      <span className="text-xl font-bold text-text-primary">{rating}</span>
+                    </div>
+                    <span className="text-sm text-text-secondary">
+                      {currentLanguage === 'am' ? 'አማካይ ደረጃ' : 'Average Rating'}
+                    </span>
+                  </div>
 
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <div className="text-xl font-bold text-text-primary mb-2">{user?.completionRate}%</div>
-                <span className="text-sm text-text-secondary">
-                  {currentLanguage === 'am' ? 'ማጠናቀቅ ደረጃ' : 'Completion Rate'}
-                </span>
-              </div>
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <div className="text-xl font-bold text-text-primary mb-2">{user?.completionRate ?? 0}%</div>
+                    <span className="text-sm text-text-secondary">
+                      {currentLanguage === 'am' ? 'ማጠናቀቅ ደረጃ' : 'Completion Rate'}
+                    </span>
+                  </div>
 
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <div className="text-xl font-bold text-text-primary mb-2">
-                  {currentLanguage === 'am' ? user?.responseTimeAm : user?.responseTime}
-                </div>
-                <span className="text-sm text-text-secondary">
-                  {currentLanguage === 'am' ? 'ምላሽ ጊዜ' : 'Response Time'}
-                </span>
-              </div>
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <div className="text-xl font-bold text-text-primary mb-2">{user?.responseTime || '-'}</div>
+                    <span className="text-sm text-text-secondary">
+                      {currentLanguage === 'am' ? 'ምላሽ ጊዜ' : 'Response Time'}
+                    </span>
+                  </div>
 
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <div className="text-xl font-bold text-text-primary mb-2">{user?.totalOrders}</div>
-                <span className="text-sm text-text-secondary">
-                  {currentLanguage === 'am' ? 'ጠቅላላ ትዕዛዞች' : 'Total Orders'}
-                </span>
-              </div>
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <div className="text-xl font-bold text-text-primary mb-2">{user?.totalOrders ?? 0}</div>
+                    <span className="text-sm text-text-secondary">
+                      {currentLanguage === 'am' ? 'ጠቅላላ ትዕዛዞች' : 'Total Orders'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <div className="text-xl font-bold text-text-primary mb-2">{user?.completionRate ?? 0}%</div>
+                    <span className="text-sm text-text-secondary">
+                      {currentLanguage === 'am' ? 'ማጠናቀቅ ደረጃ' : 'Completion Rate'}
+                    </span>
+                  </div>
+
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <div className="text-xl font-bold text-text-primary mb-2">{user?.totalOrders ?? 0}</div>
+                    <span className="text-sm text-text-secondary">
+                      {currentLanguage === 'am' ? 'ጠቅላላ ትዕዛዞች' : 'Total Orders'}
+                    </span>
+                  </div>
+
+                  {/* Keep grid spacing consistent with two empty cells */}
+                  <div></div>
+                  <div></div>
+                </>
+              )}
             </div>
           </div>
         </div>

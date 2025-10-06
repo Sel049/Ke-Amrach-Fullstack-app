@@ -21,7 +21,7 @@ const ResetPasswordPage = () => {
   };
 
   const getPageTitle = () => {
-    const baseTitle = 'Ke geberew Ethiopia';
+    const baseTitle = 'Keamrach Ethiopia';
     return currentLanguage === 'am' ? `ፓስዎርድ አስተካከል - ${baseTitle}` : `Reset Password - ${baseTitle}`;
   };
 
@@ -47,7 +47,7 @@ const ResetPasswordPage = () => {
             </div>
               <div className="flex flex-col">
                 <span className="font-heading font-bold text-xl text-primary">
-                  Ke geberew
+                  Keamrach
                 </span>
                 <span className="font-caption text-xs text-text-secondary -mt-1">
                   Ethiopia
@@ -73,7 +73,7 @@ const ResetPasswordPage = () => {
         {/* Footer */}
         <footer className="flex-shrink-0 p-4 text-center">
           <p className="text-xs text-text-secondary">
-            © {new Date()?.getFullYear()} Ke geberew Ethiopia.
+            © {new Date()?.getFullYear()} Keamrach Ethiopia.
             {currentLanguage === 'am' ? ' ሁሉም መብቶች የተጠበቁ ናቸው።' : ' All rights reserved.'}
           </p>
         </footer>

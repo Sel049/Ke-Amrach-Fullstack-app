@@ -61,17 +61,17 @@ const ProduceListingCard = ({ listing, currentLanguage = 'en' }) => {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
             <Image
-              src={listing.farmer.avatar}
-              alt={listing.farmer.name}
+              src={listing?.farmer?.avatar || '/assets/images/no_image.png'}
+              alt={listing?.farmer?.name || 'Farmer'}
               className="w-6 h-6 rounded-full"
             />
-            <span className="text-sm font-medium">{listing.farmer.name}</span>
+            <span className="text-sm font-medium">{listing?.farmer?.name || '—'}</span>
             <div className="flex items-center space-x-1">
               <Icon name="Star" className="w-3 h-3 text-yellow-500" />
-              <span className="text-xs">{listing.farmer.rating}</span>
+              <span className="text-xs">{listing?.farmer?.rating ?? (listing?.averageRating ?? 0)}</span>
             </div>
           </div>
-          {listing.farmer.isVerified && (
+          {listing?.farmer?.isVerified && (
             <div className="flex items-center space-x-1 text-green-600">
               <Icon name="CheckCircle" className="w-3 h-3" />
               <span className="text-xs">{currentLanguage === 'en' ? 'Verified' : 'የተረጋገጠ'}</span>

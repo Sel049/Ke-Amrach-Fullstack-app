@@ -17,41 +17,11 @@ import { globalErrorHandler, notFoundHandler } from "./utils/errorHandler.js";
 // App
 const app = express();
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-  crossOriginEmbedderPolicy: false
-}));
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
-  message: {
-    error: "Too many requests from this IP, please try again later.",
-    retryAfter: "15 minutes"
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.use(limiter);
-
-// CORS configuration
+// CORS configuration (must run BEFORE other middleware)
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'];
-    
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
+    if (!origin) return callback(null, true); // allow tools without origin (Postman, curl)
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -62,8 +32,65 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
-
 app.use(cors(corsOptions));
+// Explicitly handle preflight for all routes
+app.options('*', cors(corsOptions));
+
+// Security middleware (after CORS so preflight always gets headers)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  message: {
+    error: "Too many requests from this IP, please try again later.",
+    retryAfter: "15 minutes"
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// In development, make the limiter very lenient (effectively off)
+if (process.env.NODE_ENV === 'development') {
+  app.use(rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour window
+    max: 100000, // very high cap during local dev
+    standardHeaders: true,
+    legacyHeaders: false,
+  }));
+} else {
+app.use(limiter);
+}
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+  if (req.path.includes('/images')) {
+    console.log('Image request details:', {
+      method: req.method,
+      path: req.path,
+      headers: {
+        contentType: req.headers['content-type'],
+        authorization: req.headers.authorization ? 'present' : 'missing'
+      }
+    });
+  }
+  next();
+});
+
+// (CORS is configured above)
 
 // JSON parsing with better error handling
 app.use(express.json({
@@ -214,6 +241,9 @@ app.listen(port, async () => {
           total NUMERIC(12,2) GENERATED ALWAYS AS (subtotal + delivery_fee) STORED,
           currency CHAR(3) NOT NULL DEFAULT 'ETB',
           notes TEXT NULL,
+          delivery_address TEXT NULL,
+          delivery_notes TEXT NULL,
+          payment_method VARCHAR(64) NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           INDEX idx_orders_buyer (buyer_user_id),
@@ -254,6 +284,28 @@ app.listen(port, async () => {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
         console.log('🧱 Ensured required tables exist');
+
+        // Ensure new columns on existing orders table (idempotent)
+        await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT NULL`);
+        await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_notes TEXT NULL`);
+        await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(64) NULL`);
+        
+        // Ensure verification_status column on users table (idempotent)
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending'`);
+
+        // Ensure payouts table exists for farmer withdrawals
+        await pool.query(`CREATE TABLE IF NOT EXISTS payouts (
+          id BIGINT PRIMARY KEY AUTO_INCREMENT,
+          user_id BIGINT NOT NULL,
+          payment_method_id BIGINT NOT NULL,
+          amount NUMERIC(12,2) NOT NULL,
+          currency CHAR(3) NOT NULL DEFAULT 'ETB',
+          status ENUM('pending','approved','processing','completed','rejected') NOT NULL DEFAULT 'pending',
+          notes TEXT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_payouts_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
       } catch (bootErr) {
         console.warn('⚠️  Failed ensuring tables:', bootErr.message);
       }

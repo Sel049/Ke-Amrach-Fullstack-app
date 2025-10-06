@@ -105,10 +105,11 @@ export const getListingReviews = async (req, res) => {
       `SELECT
         r.*,
         u.full_name as reviewer_name,
-        NULL as reviewer_avatar,
+        ua.url as reviewer_avatar,
         u.region as reviewer_region
        FROM reviews r
        JOIN users u ON r.reviewer_user_id = u.id
+       LEFT JOIN user_avatars ua ON u.id = ua.user_id
        ${whereClause}
        ORDER BY r.created_at DESC
        LIMIT ? OFFSET ?`,
@@ -190,11 +191,12 @@ export const getFarmerReviews = async (req, res) => {
         l.title as listing_title,
         l.crop as listing_crop,
         u.full_name as reviewer_name,
-        NULL as reviewer_avatar,
+        ua.url as reviewer_avatar,
         u.region as reviewer_region
        FROM reviews r
        JOIN produce_listings l ON r.listing_id = l.id
        JOIN users u ON r.reviewer_user_id = u.id
+       LEFT JOIN user_avatars ua ON u.id = ua.user_id
        ${whereClause}
        ORDER BY r.created_at DESC
        LIMIT ? OFFSET ?`,

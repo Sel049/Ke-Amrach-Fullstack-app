@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { userService } from '../../../services/apiService';
 import { getAuth } from 'firebase/auth';
 
 import Button from '../../../components/ui/Button';
@@ -47,90 +48,112 @@ const RoleSpecificSection = ({ userRole, currentLanguage }) => {
         }
   );
 
-  // Load role-specific profile attributes saved during registration
+  // Load role-specific profile data - simplified approach like AccountInformation
   useEffect(() => {
     const loadRoleSpecific = async () => {
       try {
-        // Try to get data from API first
+        if (userRole === 'farmer') {
+          // Try to get farmer profile data from API
+          try {
         const auth = getAuth();
         const user = auth.currentUser;
         if (user) {
           const token = await user.getIdToken();
           const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-          if (userRole === 'farmer') {
-            // Try to get farmer profile data
-            try {
               const { data: profileData } = await axios.get(`${API_BASE}/farmer-profile/profile`, {
                 headers: { Authorization: `Bearer ${token}` }
               });
               
               setFormData(prev => ({
                 ...prev,
-                farmName: profileData.farm_name || prev.farmName,
-                farmSize: profileData.farm_size_ha || prev.farmSize,
-                farmSizeUnit: profileData.farm_size_unit || prev.farmSizeUnit,
-                primaryCrops: Array.isArray(profileData.crops) ? profileData.crops : prev.primaryCrops,
-                farmingMethods: Array.isArray(profileData.farming_methods) ? profileData.farming_methods : prev.farmingMethods,
+                farmName: profileData.farm_name || '',
+                farmSize: profileData.farm_size_ha || '',
+                farmSizeUnit: profileData.farm_size_unit || 'hectares',
+                primaryCrops: Array.isArray(profileData.crops) ? profileData.crops : [],
+                farmingMethods: Array.isArray(profileData.farming_methods) ? profileData.farming_methods : [],
                 businessHours: {
-                  start: profileData.business_hours_start || prev.businessHours.start,
-                  end: profileData.business_hours_end || prev.businessHours.end
+                  start: profileData.business_hours_start || '06:00',
+                  end: profileData.business_hours_end || '18:00'
                 },
-                seasonalAvailability: profileData.seasonal_availability || prev.seasonalAvailability,
-                farmDescription: profileData.farm_description || prev.farmDescription,
-                farmDescriptionAm: profileData.farm_description_am || prev.farmDescriptionAm,
-                experienceYears: profileData.experience_years || prev.experienceYears,
-                specializations: Array.isArray(profileData.specializations) ? profileData.specializations : prev.specializations,
-                equipment: Array.isArray(profileData.equipment) ? profileData.equipment : prev.equipment,
-                irrigationType: profileData.irrigation_type || prev.irrigationType,
-                soilType: profileData.soil_type || prev.soilType,
-                organicCertified: profileData.organic_certified || prev.organicCertified,
-                fairTradeCertified: profileData.fair_trade_certified || prev.fairTradeCertified,
-                gmoFree: profileData.gmo_free !== undefined ? profileData.gmo_free : prev.gmoFree,
-                sustainabilityPractices: Array.isArray(profileData.sustainability_practices) ? profileData.sustainability_practices : prev.sustainabilityPractices,
-                address: profileData.address || prev.address,
+                seasonalAvailability: profileData.seasonal_availability || 'year-round',
+                farmDescription: profileData.farm_description || '',
+                farmDescriptionAm: profileData.farm_description_am || '',
+                experienceYears: profileData.experience_years || '',
+                specializations: Array.isArray(profileData.specializations) ? profileData.specializations : [],
+                equipment: Array.isArray(profileData.equipment) ? profileData.equipment : [],
+                irrigationType: profileData.irrigation_type || '',
+                soilType: profileData.soil_type || '',
+                organicCertified: profileData.organic_certified || false,
+                fairTradeCertified: profileData.fair_trade_certified || false,
+                gmoFree: profileData.gmo_free !== undefined ? profileData.gmo_free : true,
+                sustainabilityPractices: Array.isArray(profileData.sustainability_practices) ? profileData.sustainability_practices : [],
+                address: profileData.address || '',
               }));
-            } catch (profileError) {
-              console.warn('Failed to load farmer profile, using fallback data:', profileError);
-              // Fallback to user data if farmer profile doesn't exist
-              const { data } = await axios.get(`${API_BASE}/users/me`, {
-                headers: { Authorization: `Bearer ${token}` }
+            } else {
+              // Dev mode: fetch with dev token so form shows real data
+              const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+              const me = JSON.parse(localStorage.getItem('userData') || '{}');
+              const devId = me?.id || 1;
+              const devToken = `dev-token-${devId}`;
+              const { data: profileData } = await axios.get(`${API_BASE}/farmer-profile/profile`, {
+                headers: { Authorization: `Bearer ${devToken}` }
               });
-              
               setFormData(prev => ({
                 ...prev,
-                farmSize: data.farmSize || prev.farmSize,
-                farmSizeUnit: data.farmSizeUnit || prev.farmSizeUnit,
-                primaryCrops: Array.isArray(data.primaryCrops) ? data.primaryCrops : prev.primaryCrops,
-                farmingMethods: Array.isArray(data.farmingMethods) ? data.farmingMethods : prev.farmingMethods,
+                farmName: profileData.farm_name || '',
+                farmSize: profileData.farm_size_ha || '',
+                farmSizeUnit: profileData.farm_size_unit || 'hectares',
+                primaryCrops: Array.isArray(profileData.crops) ? profileData.crops : [],
+                farmingMethods: Array.isArray(profileData.farming_methods) ? profileData.farming_methods : [],
                 businessHours: {
-                  start: (data.businessHours && data.businessHours.start) || prev.businessHours.start,
-                  end: (data.businessHours && data.businessHours.end) || prev.businessHours.end
+                  start: profileData.business_hours_start || '06:00',
+                  end: profileData.business_hours_end || '18:00'
                 },
-                seasonalAvailability: data.seasonalAvailability || prev.seasonalAvailability,
+                seasonalAvailability: profileData.seasonal_availability || 'year-round',
+                farmDescription: profileData.farm_description || '',
+                farmDescriptionAm: profileData.farm_description_am || '',
+                experienceYears: profileData.experience_years || '',
+                specializations: Array.isArray(profileData.specializations) ? profileData.specializations : [],
+                equipment: Array.isArray(profileData.equipment) ? profileData.equipment : [],
+                irrigationType: profileData.irrigation_type || '',
+                soilType: profileData.soil_type || '',
+                organicCertified: profileData.organic_certified || false,
+                fairTradeCertified: profileData.fair_trade_certified || false,
+                gmoFree: profileData.gmo_free !== undefined ? profileData.gmo_free : true,
+                sustainabilityPractices: Array.isArray(profileData.sustainability_practices) ? profileData.sustainability_practices : [],
+                address: profileData.address || '',
               }));
             }
-          } else {
-            setFormData(prev => ({
-              ...prev,
-              businessType: data.businessType || prev.businessType,
-              preferredSuppliers: data.preferredSuppliers || prev.preferredSuppliers,
-              purchaseVolume: data.purchaseVolume || prev.purchaseVolume,
-              deliveryPreference: data.deliveryPreference || prev.deliveryPreference,
-              businessHours: {
-                start: (data.businessHours && data.businessHours.start) || prev.businessHours.start,
-                end: (data.businessHours && data.businessHours.end) || prev.businessHours.end
-              },
-            }));
+            } catch (profileError) {
+            
           }
+        } else {
+          // Buyer: load from API using the same pattern as AccountInformation
+          const data = await userService.getMe();
+          // Map API response to form data - same pattern as AccountInformation
+          const buyerData = {
+            businessType: data.businessType || 'restaurant',
+            preferredSuppliers: data.preferredSuppliers || 'local-farmers',
+            purchaseVolume: data.purchaseVolume || 'medium',
+            deliveryPreference: data.deliveryPreference || 'pickup',
+            businessHours: {
+              start: (data.businessHours && data.businessHours.start) || '08:00',
+              end: (data.businessHours && data.businessHours.end) || '22:00'
+            }
+          };
+          
+              setFormData(prev => ({
+                ...prev,
+            ...buyerData
+          }));
         }
       } catch (e) {
-        console.error('Failed to load role-specific data:', e);
+        
         // Fallback to localStorage data if API fails
         const storedUser = localStorage.getItem('userData');
         if (storedUser) {
           try {
             const userData = JSON.parse(storedUser);
-            // Auto-populate from registration data if available
             if (userRole === 'farmer') {
               setFormData(prev => ({
                 ...prev,
@@ -176,12 +199,9 @@ const RoleSpecificSection = ({ userRole, currentLanguage }) => {
   ];
 
   const farmingMethodOptions = [
-    { value: 'organic', label: 'Organic', labelAm: 'ኦርጋኒክ' },
     { value: 'traditional', label: 'Traditional', labelAm: 'ባህላዊ' },
     { value: 'modern', label: 'Modern', labelAm: 'ዘመናዊ' },
-    { value: 'mixed', label: 'Mixed', labelAm: 'ድብልቅ' },
-    { value: 'permaculture', label: 'Permaculture', labelAm: 'ፐርማኩልቸር' },
-    { value: 'biodynamic', label: 'Biodynamic', labelAm: 'ባዮዳይናሚክ' }
+    { value: 'mixed', label: 'Mixed', labelAm: 'ድብልቅ' }
   ];
 
   const specializationOptions = [
@@ -279,10 +299,10 @@ const RoleSpecificSection = ({ userRole, currentLanguage }) => {
       try {
         const auth = getAuth();
         const user = auth.currentUser;
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+        
         if (user) {
           const token = await user.getIdToken();
-          const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-          
           if (userRole === 'farmer') {
             // Save to farmer profile API
             const farmerProfileData = {
@@ -308,24 +328,78 @@ const RoleSpecificSection = ({ userRole, currentLanguage }) => {
               address: formData.address
             };
             
-            await axios.put(`${API_BASE}/farmer-profile/profile`, farmerProfileData, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+            try {
+              const response = await axios.put(`${API_BASE}/farmer-profile/profile`, farmerProfileData, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+            } catch (apiCallError) {
+              throw apiCallError; // Re-throw to be caught by outer catch
+            }
           } else {
-            // Save to user API for buyers
-            await axios.put(`${API_BASE}/users/me`, formData, {
-              headers: { Authorization: `Bearer ${token}` }
+            // Save to user API for buyers using authenticated client wrapper
+            await userService.updateMe({
+              businessType: formData.businessType,
+              preferredSuppliers: formData.preferredSuppliers,
+              purchaseVolume: formData.purchaseVolume,
+              deliveryPreference: formData.deliveryPreference
+            });
+          }
+        } else {
+          // No Firebase user (dev mode): use dev token for farmer profile
+          if (userRole === 'farmer') {
+            const farmerProfileData = {
+              farm_name: formData.farmName,
+              farm_size_ha: formData.farmSize,
+              farm_size_unit: formData.farmSizeUnit,
+              crops: formData.primaryCrops,
+              farming_methods: formData.farmingMethods,
+              seasonal_availability: formData.seasonalAvailability,
+              business_hours_start: formData.businessHours.start,
+              business_hours_end: formData.businessHours.end,
+              farm_description: formData.farmDescription,
+              farm_description_am: formData.farmDescriptionAm,
+              experience_years: formData.experienceYears,
+              specializations: formData.specializations,
+              equipment: formData.equipment,
+              irrigation_type: formData.irrigationType,
+              soil_type: formData.soilType,
+              organic_certified: formData.organicCertified,
+              fair_trade_certified: formData.fairTradeCertified,
+              gmo_free: formData.gmoFree,
+              sustainability_practices: formData.sustainabilityPractices,
+              address: formData.address
+            };
+            
+            try {
+              // Use per-user dev token so updates apply to the correct user
+              const me = JSON.parse(localStorage.getItem('userData') || '{}');
+              const devId = me?.id || 1;
+              const devToken = `dev-token-${devId}`;
+              const response = await axios.put(`${API_BASE}/farmer-profile/profile`, farmerProfileData, {
+                headers: { Authorization: `Bearer ${devToken}` }
+              });
+            } catch (apiCallError) {
+              throw apiCallError; // Re-throw to be caught by outer catch
+            }
+          } else {
+            // No Firebase user (dev mode): still persist buyer data via authenticated client
+            await userService.updateMe({
+              businessType: formData.businessType,
+              preferredSuppliers: formData.preferredSuppliers,
+              purchaseVolume: formData.purchaseVolume,
+              deliveryPreference: formData.deliveryPreference
             });
           }
         }
       } catch (apiError) {
-        console.warn('API save failed, data saved locally:', apiError);
+        // Don't show success message if API failed
+        alert(currentLanguage === 'en' ? 'Failed to save to database. Please check console for details.' : 'ወደ ዳታቤዝ መቀመጥ አልተሳካም። እባክዎ ዝርዝሮችን ያረጋግጡ።');
+        return; // Exit early to prevent success message
       }
 
       setIsEditing(false);
       alert(currentLanguage === 'en' ? 'Profile updated successfully!' : 'መገለጫ በተሳካ ሁኔታ ተዘምኗል!');
     } catch (e) {
-      console.error('Profile update error:', e);
       alert(currentLanguage === 'en' ? 'Failed to update profile. Please try again.' : 'መገለጫ ማዘመን አልተሳካም። እባክዎ እንደገና ይሞክሩ።');
     }
   };
@@ -516,114 +590,6 @@ const RoleSpecificSection = ({ userRole, currentLanguage }) => {
             onChange={(value) => handleInputChange('soilType', value)}
             disabled={!isEditing}
           />
-        </div>
-      </div>
-
-      {/* Specializations */}
-      <div>
-        <h3 className="text-lg font-semibold text-text-primary mb-4">
-          {getLabel('Specializations', 'ልዩ ችሎታዎች')}
-        </h3>
-        
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {specializationOptions?.map((spec) => (
-            <Checkbox
-              key={spec?.value}
-              label={getOptionLabel(spec)}
-              checked={formData?.specializations?.includes(spec?.value)}
-              onChange={(e) => handleArrayChange('specializations', spec?.value, e?.target?.checked)}
-              disabled={!isEditing}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Equipment */}
-      <div>
-        <h3 className="text-lg font-semibold text-text-primary mb-4">
-          {getLabel('Farm Equipment', 'የእርሻ መሳሪያዎች')}
-        </h3>
-        
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {equipmentOptions?.map((equipment) => (
-            <Checkbox
-              key={equipment?.value}
-              label={getOptionLabel(equipment)}
-              checked={formData?.equipment?.includes(equipment?.value)}
-              onChange={(e) => handleArrayChange('equipment', equipment?.value, e?.target?.checked)}
-              disabled={!isEditing}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Certifications */}
-      <div>
-        <h3 className="text-lg font-semibold text-text-primary mb-4">
-          {getLabel('Certifications & Standards', 'ማረጋገጫዎች እና ደረጃዎች')}
-        </h3>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              id="organic-certified"
-              checked={formData?.organicCertified}
-              onChange={(e) => handleInputChange('organicCertified', e?.target?.checked)}
-              disabled={!isEditing}
-              className="w-4 h-4 text-primary bg-surface border-border rounded focus:ring-primary focus:ring-2"
-            />
-            <label htmlFor="organic-certified" className="text-sm font-medium text-text-primary">
-              {getLabel('Organic Certified', 'ኦርጋኒክ የተረጋገጠ')}
-            </label>
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              id="fair-trade-certified"
-              checked={formData?.fairTradeCertified}
-              onChange={(e) => handleInputChange('fairTradeCertified', e?.target?.checked)}
-              disabled={!isEditing}
-              className="w-4 h-4 text-primary bg-surface border-border rounded focus:ring-primary focus:ring-2"
-            />
-            <label htmlFor="fair-trade-certified" className="text-sm font-medium text-text-primary">
-              {getLabel('Fair Trade Certified', 'ፌር ትሬድ የተረጋገጠ')}
-            </label>
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              id="gmo-free"
-              checked={formData?.gmoFree}
-              onChange={(e) => handleInputChange('gmoFree', e?.target?.checked)}
-              disabled={!isEditing}
-              className="w-4 h-4 text-primary bg-surface border-border rounded focus:ring-primary focus:ring-2"
-            />
-            <label htmlFor="gmo-free" className="text-sm font-medium text-text-primary">
-              {getLabel('GMO Free', 'GMO ነፃ')}
-            </label>
-          </div>
-        </div>
-      </div>
-
-      {/* Sustainability Practices */}
-      <div>
-        <h3 className="text-lg font-semibold text-text-primary mb-4">
-          {getLabel('Sustainability Practices', 'የተቀጣጣይነት ልምዶች')}
-        </h3>
-        
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {sustainabilityOptions?.map((practice) => (
-            <Checkbox
-              key={practice?.value}
-              label={getOptionLabel(practice)}
-              checked={formData?.sustainabilityPractices?.includes(practice?.value)}
-              onChange={(e) => handleArrayChange('sustainabilityPractices', practice?.value, e?.target?.checked)}
-              disabled={!isEditing}
-            />
-          ))}
         </div>
       </div>
 

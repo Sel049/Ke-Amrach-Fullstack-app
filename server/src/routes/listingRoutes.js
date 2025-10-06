@@ -10,7 +10,9 @@ import {
   searchListings,
   getAllActiveListings,
   getListingsByCategory,
-  getListingsByRegion
+  getListingsByRegion,
+  getAllListingsAdmin,
+  adminUpdateListingStatus
 } from "../controllers/listingController.js";
 
 const router = Router();
@@ -20,6 +22,9 @@ router.get('/active', getAllActiveListings);
 router.get('/search', searchListings);
 router.get('/category/:category', getListingsByCategory);
 router.get('/region/:region', getListingsByRegion);
+// Admin listings must come before id route to avoid being captured by :id
+router.get('/admin/all', authGuard, getAllListingsAdmin);
+router.patch('/admin/:id/status', authGuard, adminUpdateListingStatus);
 router.get('/:id', getListingById);
 
 // Protected routes (authentication required)

@@ -10,6 +10,7 @@ const FavoritesPage = () => {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [removing, setRemoving] = useState(new Set());
 
   useEffect(() => {
     const load = async () => {
@@ -26,6 +27,23 @@ const FavoritesPage = () => {
     };
     load();
   }, []);
+
+  const handleRemoveFavorite = async (listingId) => {
+    try {
+      setRemoving(prev => new Set(prev).add(listingId));
+      await favoriteService.removeFromFavorites(listingId);
+      setFavorites(prev => prev.filter(fav => fav.id !== listingId));
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+      alert('Failed to remove from favorites');
+    } finally {
+      setRemoving(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(listingId);
+        return newSet;
+      });
+    }
+  };
 
   return (
     <AuthenticatedLayout>
@@ -51,9 +69,12 @@ const FavoritesPage = () => {
             {favorites.map((f) => (
               <div key={f.favorite_id || f.id} className="overflow-hidden border rounded-lg bg-card border-border">
                 <img
-                  src={f.image || f.images?.[0]?.url || '/public/assets/images/no_image.png'}
-                  alt={f.title || f.name || f.crop}
+                  src={f.image || '/public/assets/images/no_image.png'}
+                  alt={f.title || f.name || f.crop || 'Listing image'}
                   className="object-cover w-full h-40"
+                  onError={(e) => {
+                    e.target.src = '/public/assets/images/no_image.png';
+                  }}
                 />
                 <div className="p-4">
                   <h3 className="font-semibold text-text-primary">{f.title || f.name || f.crop}</h3>
@@ -61,7 +82,22 @@ const FavoritesPage = () => {
                   <div className="flex items-center justify-between mt-3">
                     <span className="font-medium text-primary">ETB {f.price_per_unit || f.pricePerKg}</span>
                     <div className="space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => navigate('/listing-reviews') } iconName="Heart" />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleRemoveFavorite(f.id)}
+                        disabled={removing.has(f.id)}
+                        iconName={removing.has(f.id) ? "Loader" : "Heart"}
+                        className={removing.has(f.id) ? "animate-spin" : ""}
+                        title="Remove from favorites"
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => navigate('/listing-reviews')} 
+                        iconName="Eye"
+                        title="View details"
+                      />
                     </div>
                   </div>
                 </div>

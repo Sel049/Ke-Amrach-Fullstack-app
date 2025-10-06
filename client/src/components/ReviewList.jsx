@@ -131,14 +131,22 @@ const ReviewList = ({ listingId, farmerId, showFarmerReviews = false }) => {
         <div key={review.id} className="bg-white rounded-lg shadow-sm p-4">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <span className="text-green-600 font-semibold text-sm">
-                  {review.buyer_name?.charAt(0)?.toUpperCase() || 'U'}
-                </span>
-              </div>
+              {review.reviewer_avatar ? (
+                <img
+                  src={review.reviewer_avatar}
+                  alt={review.reviewer_name || 'Reviewer'}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <span className="text-green-600 font-semibold text-sm">
+                    {(review.reviewer_name || 'U')?.charAt(0)?.toUpperCase()}
+                  </span>
+                </div>
+              )}
               <div>
                 <h4 className="font-medium text-gray-800">
-                  {review.buyer_name || 'Anonymous'}
+                  {review.reviewer_name || 'Anonymous'}
                 </h4>
                 <div className="flex items-center space-x-2">
                   <StarRating rating={review.rating} />

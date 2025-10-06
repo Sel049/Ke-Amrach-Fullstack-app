@@ -29,6 +29,11 @@ router.get('/listings', getFarmerListings);
 router.post('/listings', createFarmerListing);
 router.put('/listings/:id', updateFarmerListing);
 router.patch('/listings/:id/status', updateListingStatus);
+router.delete('/listings/:id', (req, res, next) => {
+  import('../controllers/farmerController.js')
+    .then(mod => mod.deleteFarmerListing(req, res, next))
+    .catch(next);
+});
 router.patch('/listings/bulk-status', bulkUpdateListingStatus);
 router.delete('/listings/bulk', bulkDeleteListings);
 
@@ -37,7 +42,29 @@ router.get('/orders', getFarmerOrders);
 
 // Image upload
 router.post('/upload-image', upload.single('image'), handleUploadError, uploadImage);
-router.post('/listings/:id/images', upload.single('image'), handleUploadError, addListingImage);
+router.post('/listings/:id/images', (req, res, next) => {
+  console.log('=== ROUTE DEBUG: /listings/:id/images ===');
+  console.log('Content-Type:', req.headers['content-type']);
+  console.log('Body:', req.body);
+  console.log('Params:', req.params);
+  
+  // Check if request has file upload or JSON data
+  if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+    console.log('Handling as file upload');
+    // Handle file upload
+    upload.single('image')(req, res, (err) => {
+      if (err) {
+        handleUploadError(err, req, res, next);
+      } else {
+        addListingImage(req, res, next);
+      }
+    });
+  } else {
+    console.log('Handling as JSON data');
+    // Handle JSON data (URL)
+    addListingImage(req, res, next);
+  }
+});
 
 // Debug endpoint to check images
 router.get('/debug/images/:listingId', async (req, res) => {

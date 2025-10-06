@@ -19,6 +19,11 @@ const OrderManagement = () => {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [userRole, setUserRole] = useState('buyer');
+  const [viewingId, setViewingId] = useState(null);
+  const [viewData, setViewData] = useState(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState(null);
   const [filters, setFilters] = useState({
     status: '',
     dateFrom: '',
@@ -37,13 +42,14 @@ const OrderManagement = () => {
       try {
         setIsLoading(true);
         const status = activeTab === 'all' ? undefined : activeTab;
-        const userRole = (JSON.parse(localStorage.getItem('user') || '{}')?.role) || localStorage.getItem('userRole') || 'buyer';
-        const res = userRole === 'farmer'
+        const role = (JSON.parse(localStorage.getItem('user') || '{}')?.role) || localStorage.getItem('userRole') || 'buyer';
+        setUserRole(role);
+        const res = role === 'farmer'
           ? await orderService.getFarmerOrders({ status })
           : await orderService.getBuyerOrders({ status });
         // Normalize to UI model based on user role
         let normalized;
-        if (userRole === 'farmer') {
+        if (role === 'farmer') {
           // Farmer orders - res.data.orders contains the orders
           const orders = res.orders || res;
           normalized = orders.map((o) => ({
@@ -78,24 +84,23 @@ const OrderManagement = () => {
             status: o.status,
             createdAt: o.createdAt,
             totalAmount: Number(o.totalPrice),
-            buyer: {
-              name: 'You',
-              avatar: '',
-              phone: '',
+            farmer: { // Changed from buyer to farmer for buyer's view
+              name: o.farmerName || 'Unknown Farmer',
+              avatar: o.farmerAvatar || '',
+              phone: o.farmerPhone || '',
               location: o.location,
               verified: true
             },
-            items: [
-              {
-                id: `listing-${o.id}`,
-                name: o.name,
-                quantity: o.quantity,
-                unit: 'kg',
-                pricePerUnit: Number(o.pricePerKg),
-                total: Number(o.totalPrice),
-                image: o.image || 'https://images.pexels.com/photos/4110256/pexels-photo-4110256.jpeg'
-              }
-            ],
+            items: [{
+              id: `listing-${o.listingId || o.id}`,
+              listingId: o.listingId,
+              name: o.name,
+              quantity: o.quantity,
+              unit: 'kg',
+              pricePerUnit: Number(o.pricePerKg),
+              total: Number(o.totalPrice),
+              image: o.image || 'https://images.pexels.com/photos/4110256/pexels-photo-4110256.jpeg'
+            }],
             specialInstructions: o.notes || ''
           }));
         }
@@ -213,9 +218,19 @@ const OrderManagement = () => {
     window.open(`tel:${phoneNumber}`, '_self');
   };
 
-  const handleViewDetails = (orderId) => {
-    // Navigate to order details or open modal
-    console.log(`View details for order ${orderId}`);
+  const handleViewDetails = async (orderId) => {
+    try {
+      setViewingId(orderId);
+      setViewLoading(true);
+      setViewError(null);
+      const data = await orderService.getOrderById(orderId);
+      setViewData(data);
+    } catch (e) {
+      console.error('Failed to load order details', e);
+      setViewError('Failed to load order details');
+    } finally {
+      setViewLoading(false);
+    }
   };
 
   const handleExport = () => {
@@ -355,6 +370,7 @@ const OrderManagement = () => {
                       onComplete={handleMarkCompleted}
                       onContactBuyer={handleContactBuyer}
                       currentLanguage={currentLanguage}
+                      userRole={userRole}
                     />
                   ))}
                 </div>
@@ -368,6 +384,70 @@ const OrderManagement = () => {
             )}
           </div>
         </div>
+      {/* View Details Modal */}
+      {viewingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-lg w-full max-w-2xl overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-text-primary">
+                {currentLanguage === 'am' ? 'የትዕዛዝ ዝርዝር' : 'Order Details'} #{viewingId}
+              </h3>
+              <Button variant="ghost" size="sm" iconName="X" onClick={() => { setViewingId(null); setViewData(null); setViewError(null); }} />
+            </div>
+            <div className="p-4 space-y-4">
+              {viewLoading && (
+                <div className="text-text-secondary">{currentLanguage === 'am' ? 'በመጫን ላይ...' : 'Loading...'}</div>
+              )}
+              {viewError && (
+                <div className="text-error">{viewError}</div>
+              )}
+              {viewData && (
+                <>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="text-text-secondary">{currentLanguage === 'am' ? 'ሁኔታ' : 'Status'}</div>
+                      <div className="font-medium capitalize">{viewData.status}</div>
+                    </div>
+                    <div>
+                      <div className="text-text-secondary">{currentLanguage === 'am' ? 'ቀን' : 'Created'}</div>
+                      <div className="font-medium">{new Date(viewData.createdAt || viewData.created_at).toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-text-secondary">{currentLanguage === 'am' ? (userRole === 'buyer' ? 'አበባተር' : 'ገዢ') : (userRole === 'buyer' ? 'Farmer' : 'Buyer')}</div>
+                      <div className="font-medium">{userRole === 'buyer' ? (viewData.farmerName || viewData.farmer_name) : (viewData.buyerName || viewData.buyer_name)}</div>
+                    </div>
+                    <div>
+                      <div className="text-text-secondary">{currentLanguage === 'am' ? 'ጠቅላላ' : 'Total'}</div>
+                      <div className="font-medium">ETB {Number(viewData.totalPrice || viewData.total || 0).toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-text-secondary mb-1">{currentLanguage === 'am' ? 'ማብራሪያ' : 'Notes'}</div>
+                    <div className="text-sm">{viewData.delivery_notes || viewData.notes || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-text-secondary mb-2">{currentLanguage === 'am' ? 'ዕቃዎች' : 'Items'}</div>
+                    <div className="divide-y divide-border">
+                      {(viewData.items || [viewData]).map((it, idx) => (
+                        <div key={idx} className="py-2 flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-2">
+                            <img src={it.image || viewData.image} alt={it.name || viewData.name} className="w-10 h-10 rounded object-cover" />
+                            <div>
+                              <div className="font-medium">{it.name || viewData.name}</div>
+                              <div className="text-text-secondary">{(it.quantity || viewData.quantity)} {(it.unit || 'kg')} × ETB {Number(it.price_per_unit || viewData.pricePerKg || 0).toLocaleString()}</div>
+                            </div>
+                          </div>
+                          <div className="font-medium">ETB {Number((it.total) || (it.quantity || viewData.quantity) * (it.price_per_unit || viewData.pricePerKg || 0)).toLocaleString()}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Mobile FAB removed for buyer order page */}
     </AuthenticatedLayout>
   );

@@ -1,4 +1,4 @@
-import { pool } from './src/config/database.js';
+import { pool } from '../src/config/database.js';
 
 async function addPasswordResetTable() {
   try {

@@ -289,17 +289,19 @@ const BrowseListingsBuyerHome = () => {
             pricePerKg: parseFloat(listing.price_per_unit || listing.pricePerKg || 0),
             availableQuantity: parseFloat(listing.quantity || listing.availableQuantity || 0),
             image: listing.image || listing.images?.[0]?.url || getDefaultImage(listing.crop || listing.category),
-            freshness: "Fresh from farm",
+            // ratings: pull real values when present
+            averageRating: parseFloat(listing.average_rating ?? listing.averageRating ?? listing.farmer?.rating ?? 0) || 0,
+            reviewCount: parseInt(listing.review_count ?? listing.reviewCount ?? listing.farmer?.reviewCount ?? 0) || 0,
             category: listing.crop || listing.category,
             farmer: {
               id: listing.farmer_user_id || listing.farmerUserId,
               name: listing.farmer_name || listing.farmerName,
               avatar: listing.farmer_avatar || listing.farmerAvatar || "https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg",
               location: `${listing.region || listing.location}, ${listing.woreda || ''}`,
-              rating: 4.5,
-              reviewCount: 50,
+              rating: parseFloat(listing.average_rating ?? listing.averageRating ?? 0) || 0,
+              reviewCount: parseInt(listing.review_count ?? listing.reviewCount ?? 0) || 0,
               phone: listing.farmer_phone || "+251900000000",
-              isVerified: true
+              isVerified: String(listing.farmer_verification_status || listing.farmerVerificationStatus || '')?.toLowerCase() === 'verified'
             }
           }));
 
@@ -356,17 +358,18 @@ const BrowseListingsBuyerHome = () => {
           pricePerKg: parseFloat(listing.price_per_unit || listing.pricePerKg || 0),
           availableQuantity: parseFloat(listing.quantity || listing.availableQuantity || 0),
           image: listing.image || listing.images?.[0]?.url || "https://images.pexels.com/photos/4110256/pexels-photo-4110256.jpeg",
-          freshness: "Fresh from farm",
+          averageRating: parseFloat(listing.average_rating ?? listing.averageRating ?? listing.farmer?.rating ?? 0) || 0,
+          reviewCount: parseInt(listing.review_count ?? listing.reviewCount ?? listing.farmer?.reviewCount ?? 0) || 0,
           category: listing.crop || listing.category,
           farmer: {
             id: listing.farmer_user_id || listing.farmerUserId,
             name: listing.farmer_name || listing.farmerName,
             avatar: listing.farmer_avatar || listing.farmerAvatar || "https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg",
             location: `${listing.region || listing.location}, ${listing.woreda || ''}`,
-            rating: 4.5,
-            reviewCount: 50,
+            rating: parseFloat(listing.average_rating ?? listing.averageRating ?? 0) || 0,
+            reviewCount: parseInt(listing.review_count ?? listing.reviewCount ?? 0) || 0,
             phone: listing.farmer_phone || "+251900000000",
-            isVerified: true
+            isVerified: String(listing.farmer_verification_status || listing.farmerVerificationStatus || '')?.toLowerCase() === 'verified'
           }
         }));
 

@@ -3,7 +3,7 @@
  * Create test listings for testing duplicate functionality
  */
 
-import { pool } from './src/config/database.js';
+import { pool } from '../src/config/database.js';
 
 async function createTestListings() {
   try {

@@ -1,5 +1,15 @@
 import { pool } from '../config/database.js';
 
+
+function normalizeImageUrl(req, url) {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = `${req.protocol}://${req.get('host')}`;
+  if (url.startsWith('/uploads/')) return `${base}${url}`;
+  if (url.startsWith('uploads/')) return `${base}/${url}`;
+  return url;
+}
+
 // Get all active listings for buyer dashboard
 export const getAllActiveListings = async (req, res) => {
   try {
@@ -19,7 +29,7 @@ export const getAllActiveListings = async (req, res) => {
         pl.created_at as createdAt,
         pl.updated_at as updatedAt,
         u.full_name as farmerName,
-        NULL as farmerAvatar,
+        ua.url as farmerAvatar,
         pl.region as location,
         pl.woreda,
         pl.unit,
@@ -28,6 +38,7 @@ export const getAllActiveListings = async (req, res) => {
         u.phone as farmer_phone
       FROM produce_listings pl
       JOIN users u ON pl.farmer_user_id = u.id
+      LEFT JOIN user_avatars ua ON u.id = ua.user_id
       WHERE pl.status = 'active'
       AND pl.quantity > 0
       ORDER BY pl.created_at DESC
@@ -39,6 +50,7 @@ export const getAllActiveListings = async (req, res) => {
     // Get all images for these listings
     const listingIds = listings.map(l => l.id);
     let images = [];
+    let reviewStatsByListing = {};
     
     if (listingIds.length > 0) {
       const imagesQuery = `
@@ -50,6 +62,22 @@ export const getAllActiveListings = async (req, res) => {
       
       const [imageRows] = await pool.query(imagesQuery, listingIds);
       images = imageRows;
+
+      // Fetch review aggregates per listing
+      const reviewsQuery = `
+        SELECT listing_id, AVG(rating) AS avg_rating, COUNT(*) AS total_reviews
+        FROM reviews
+        WHERE listing_id IN (${listingIds.map(() => '?').join(',')})
+        GROUP BY listing_id
+      `;
+      const [reviewRows] = await pool.query(reviewsQuery, listingIds);
+      reviewStatsByListing = reviewRows.reduce((acc, row) => {
+        acc[row.listing_id] = {
+          avg_rating: Number(row.avg_rating || 0),
+          total_reviews: Number(row.total_reviews || 0)
+        };
+        return acc;
+      }, {});
     }
     
     // Group images by listing_id
@@ -58,15 +86,29 @@ export const getAllActiveListings = async (req, res) => {
       if (!imagesByListing[img.listing_id]) {
         imagesByListing[img.listing_id] = [];
       }
-      imagesByListing[img.listing_id].push(img.url);
+      imagesByListing[img.listing_id].push(normalizeImageUrl(req, img.url));
     });
     
-    // Add images to listings
-    const listingsWithImages = listings.map(listing => ({
-      ...listing,
-      image: imagesByListing[listing.id]?.[0] || null, // Primary image for backward compatibility
-      images: imagesByListing[listing.id] || [] // All images
-    }));
+    // Add images and farmer info to listings
+    const listingsWithImages = listings.map(listing => {
+      const stats = reviewStatsByListing[listing.id] || { avg_rating: 0, total_reviews: 0 };
+      return {
+        ...listing,
+        averageRating: stats.avg_rating,
+        reviewCount: stats.total_reviews,
+        image: imagesByListing[listing.id]?.[0] || null,
+        images: imagesByListing[listing.id] || [],
+        farmer: {
+          name: listing.farmerName,
+          avatar: listing.farmerAvatar || '/public/assets/images/no_image.png',
+          location: listing.location,
+          phone: listing.farmer_phone,
+          rating: stats.avg_rating,
+          reviewCount: stats.total_reviews,
+          isVerified: false // Default verification status
+        }
+      };
+    });
     
     const queryTime = Date.now() - startTime;
     console.log(`Active listings query took ${queryTime}ms, returned ${listingsWithImages.length} results`);
@@ -92,7 +134,7 @@ export const getListingById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // First get the listing
+    // First get the listing with farmer details
     const listingQuery = `
       SELECT
         pl.id,
@@ -105,15 +147,23 @@ export const getListingById = async (req, res) => {
         pl.status,
         pl.created_at as createdAt,
         pl.updated_at as updatedAt,
-        u.full_name as farmerName,
-        NULL as farmerAvatar,
         pl.region as location,
+        pl.unit,
+        pl.currency,
+        u.full_name as farmerName,
         u.phone as farmerPhone,
         u.email as farmerEmail,
-        pl.unit,
-        pl.currency
+        u.region as farmerRegion,
+        u.woreda as farmerWoreda,
+        ua.url as farmerAvatar,
+        fp.farm_name,
+        fp.experience_years,
+        fp.certifications,
+        fp.crops
       FROM produce_listings pl
       JOIN users u ON pl.farmer_user_id = u.id
+      LEFT JOIN user_avatars ua ON u.id = ua.user_id
+      LEFT JOIN farmer_profiles fp ON u.id = fp.user_id
       WHERE pl.id = ?
     `;
 
@@ -134,13 +184,37 @@ export const getListingById = async (req, res) => {
     `;
 
     const [imageRows] = await pool.query(imagesQuery, [id]);
-    const images = imageRows.map(img => img.url);
+    const images = imageRows.map(img => normalizeImageUrl(req, img.url));
 
-    // Add images to listing
+    // Get review stats for this listing
+    const [statsRows] = await pool.query(
+      `SELECT AVG(rating) AS avg_rating, COUNT(*) AS total_reviews FROM reviews WHERE listing_id = ?`,
+      [id]
+    );
+    const avgRating = Number(statsRows?.[0]?.avg_rating || 0);
+    const totalReviews = Number(statsRows?.[0]?.total_reviews || 0);
+
+    // Add images, farmer info, and aggregated review stats to listing
     const listingWithImages = {
       ...listing,
-      image: images[0] || null, // Primary image for backward compatibility
-      images: images // All images
+      averageRating: avgRating,
+      reviewCount: totalReviews,
+      image: images[0] || null,
+      images: images,
+      farmer: {
+        name: listing.farmerName,
+        avatar: listing.farmerAvatar || '/public/assets/images/no_image.png',
+        location: listing.farmerRegion,
+        phone: listing.farmerPhone,
+        email: listing.farmerEmail,
+        farmName: listing.farm_name,
+        experienceYears: listing.experience_years,
+        certifications: listing.certifications,
+        crops: listing.crops,
+        rating: avgRating,
+        reviewCount: totalReviews,
+        isVerified: !!listing.certifications
+      }
     };
 
     res.json(listingWithImages);
@@ -330,6 +404,201 @@ export const getListingsByRegion = async (req, res) => {
   }
 };
 
+// Admin: Get all listings with filters and pagination
+export const getAllListingsAdmin = async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    const { status, search, category, region, limit = 50, offset = 0 } = req.query;
+
+    // Enforce role-based access
+    const [userRows] = await pool.query(
+      "SELECT id, role FROM users WHERE firebase_uid = ?",
+      [uid]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const userRole = userRows[0].role;
+    if (userRole !== 'admin') {
+      return res.status(403).json({ error: "Access denied. Admin role required." });
+    }
+
+    // Build dynamic filters
+    let whereClause = "1=1";
+    const params = [];
+
+    if (status && status !== 'all') {
+      whereClause += " AND pl.status = ?";
+      params.push(status);
+    }
+
+    if (category && category !== 'all') {
+      whereClause += " AND pl.crop = ?";
+      params.push(category);
+    }
+
+    if (region && region !== 'all') {
+      whereClause += " AND pl.region = ?";
+      params.push(region);
+    }
+
+    if (search) {
+      whereClause += " AND (pl.title LIKE ? OR pl.crop LIKE ? OR u.full_name LIKE ?)";
+      const s = `%${search}%`;
+      params.push(s, s, s);
+    }
+
+    // Main query
+    const [rows] = await pool.query(
+      `SELECT
+        pl.id,
+        pl.title,
+        pl.crop,
+        pl.description,
+        pl.price_per_unit,
+        pl.quantity,
+        pl.unit,
+        pl.currency,
+        pl.status,
+        pl.created_at,
+        pl.updated_at,
+        pl.region,
+        pl.woreda,
+        u.full_name AS farmer_name,
+        ua.url AS farmer_avatar,
+        (
+          SELECT COUNT(*) FROM order_items oi
+          WHERE oi.listing_id = pl.id
+        ) AS orders_count,
+        (
+          SELECT li.url FROM listing_images li
+          WHERE li.listing_id = pl.id
+          ORDER BY li.sort_order ASC
+          LIMIT 1
+        ) AS image
+       FROM produce_listings pl
+       JOIN users u ON pl.farmer_user_id = u.id
+       LEFT JOIN user_avatars ua ON u.id = ua.user_id
+       WHERE ${whereClause}
+       ORDER BY pl.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, Number(limit), Number(offset)]
+    );
+
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM produce_listings pl
+       JOIN users u ON pl.farmer_user_id = u.id
+       WHERE ${whereClause}`,
+      params
+    );
+
+    res.json({ listings: rows, total: countRows[0]?.total || 0, limit: Number(limit), offset: Number(offset) });
+  } catch (error) {
+    console.error('Error fetching admin listings:', error);
+    res.status(500).json({ error: 'Failed to fetch listings' });
+  }
+};
+
+// Admin: Update listing status (suspend/activate/etc.)
+export const adminUpdateListingStatus = async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!id || !status) {
+      return res.status(400).json({ error: "Listing id and status are required" });
+    }
+
+    // Enforce role-based access
+    const [userRows] = await pool.query(
+      "SELECT id, role FROM users WHERE firebase_uid = ?",
+      [uid]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const userRole = userRows[0].role;
+    if (userRole !== 'admin') {
+      return res.status(403).json({ error: "Access denied. Admin role required." });
+    }
+
+    // Detect allowed enum values for status column
+    const [[colInfo]] = await pool.query(
+      `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'produce_listings' AND COLUMN_NAME = 'status'`
+    );
+    let allowedStatuses = [];
+    if (colInfo && typeof colInfo.COLUMN_TYPE === 'string' && colInfo.COLUMN_TYPE.startsWith('enum(')) {
+      allowedStatuses = colInfo.COLUMN_TYPE
+        .slice(5, -1)
+        .split(',')
+        .map(s => s.trim().replace(/^'(.*)'$/, '$1'));
+    }
+    if (!allowedStatuses.length) {
+      allowedStatuses = ['active', 'expired', 'pending', 'rejected', 'sold_out'];
+    }
+
+    // Map requested status to supported value in enum
+    let targetStatus = status;
+    if (!allowedStatuses.includes(targetStatus)) {
+      if (status === 'suspended') {
+        targetStatus = allowedStatuses.includes('expired') ? 'expired' : (allowedStatuses.find(s => s !== 'active') || 'active');
+      } else if (status === 'active') {
+        targetStatus = allowedStatuses.includes('active') ? 'active' : allowedStatuses[0];
+      } else {
+        return res.status(400).json({ error: `Invalid status. Allowed: ${allowedStatuses.join(', ')}` });
+      }
+    }
+
+    // Fetch listing and owner
+    const [listings] = await pool.query(
+      `SELECT pl.id, pl.farmer_user_id, pl.status, pl.title
+       FROM produce_listings pl
+       WHERE pl.id = ?`,
+      [id]
+    );
+    if (listings.length === 0) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+
+    // Update status
+    await pool.query(
+      `UPDATE produce_listings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [targetStatus, id]
+    );
+
+    // Notify listing owner about status change
+    try {
+      const ownerUserId = listings[0].farmer_user_id;
+      const listingTitle = listings[0].title;
+      const notificationType = targetStatus === 'active' ? 'listing_activated' : 'listing_suspended';
+      const payload = {
+        title: notificationType === 'listing_activated' ? 'Listing Activated' : 'Listing Suspended',
+        message: notificationType === 'listing_activated'
+          ? 'Your listing has been reactivated by an administrator.'
+          : 'Your listing has been suspended by an administrator.',
+        listingId: Number(id),
+        listingTitle,
+        action: 'view_listing'
+      };
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, payload, is_read)
+         VALUES (?, ?, ?, 0)`,
+        [ownerUserId, notificationType, JSON.stringify(payload)]
+      );
+    } catch (e) {
+      console.error('Failed to create listing status notification:', e);
+    }
+
+    res.json({ message: "Listing status updated", id: Number(id), status: targetStatus });
+  } catch (error) {
+    console.error('Error updating listing status (admin):', error);
+    res.status(500).json({ error: 'Failed to update listing status' });
+  }
+};
+
 // Create new listing
 export const createListing = async (req, res) => {
   try {
@@ -461,7 +730,7 @@ export const getListings = async (req, res) => {
       whereClause += " AND u.id IN (SELECT user_id FROM farmer_profiles WHERE certifications IS NOT NULL)";
     }
 
-    // Get listings with farmer info
+    // Get listings with farmer info and avatar
     const [listings] = await pool.query(
       `SELECT
         l.*,
@@ -471,10 +740,12 @@ export const getListings = async (req, res) => {
         u.woreda as farmer_woreda,
         fp.farm_name,
         fp.experience_years,
-        fp.certifications
+        fp.certifications,
+        ua.url as farmer_avatar
       FROM produce_listings l
       JOIN users u ON l.farmer_user_id = u.id
       LEFT JOIN farmer_profiles fp ON u.id = fp.user_id
+      LEFT JOIN user_avatars ua ON u.id = ua.user_id
       ${whereClause}
       ORDER BY l.${sortBy} ${sortOrder}
       LIMIT ? OFFSET ?`,
@@ -486,6 +757,7 @@ export const getListings = async (req, res) => {
       `SELECT COUNT(*) as total FROM produce_listings l
        JOIN users u ON l.farmer_user_id = u.id
        LEFT JOIN farmer_profiles fp ON u.id = fp.user_id
+       LEFT JOIN user_avatars ua ON u.id = ua.user_id
        ${whereClause}`,
       params
     );
@@ -493,8 +765,25 @@ export const getListings = async (req, res) => {
     const total = countResult[0].total;
     const totalPages = Math.ceil(total / limit);
 
+    // Process listings to include farmer information in expected format
+    const processedListings = listings.map(listing => ({
+      ...listing,
+      farmer: {
+        name: listing.farmer_name,
+        avatar: listing.farmer_avatar || '/public/assets/images/no_image.png',
+        location: listing.farmer_region,
+        phone: listing.farmer_phone,
+        farmName: listing.farm_name,
+        experienceYears: listing.experience_years,
+        certifications: listing.certifications,
+        rating: 4.5, // Default rating - you can implement actual rating system later
+        reviewCount: 0, // Default review count - you can implement actual review system later
+        isVerified: !!listing.certifications
+      }
+    }));
+
     res.json({
-      listings,
+      listings: processedListings,
       pagination: {
         currentPage: parseInt(page),
         totalPages,
@@ -664,3 +953,5 @@ export const getFarmerListings = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch listings" });
   }
 };
+
+

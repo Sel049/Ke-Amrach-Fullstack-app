@@ -4,16 +4,30 @@ import { createOrderNotification } from './notificationController.js';
 // Create new order (buyer places order)
 export const createOrder = async (req, res) => {
   try {
-    const { listingId, quantity, totalPrice, notes } = req.body;
+    const { items, totalPrice, deliveryAddress, deliveryNotes, paymentMethod, paymentData } = req.body;
     const buyerFirebaseUid = req.user.uid; // From auth middleware
 
     // Validate required parameters
-    if (!listingId || !quantity) {
-      return res.status(400).json({ error: 'Missing required parameters: listingId and quantity are required' });
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Missing required parameters: items array is required' });
     }
 
-    if (quantity <= 0) {
-      return res.status(400).json({ error: 'Quantity must be greater than 0' });
+    // Validate each item
+    for (const item of items) {
+      if (!item.listingId || !item.quantity) {
+        return res.status(400).json({ error: 'Missing required parameters: listingId and quantity are required for each item' });
+      }
+      if (Number(item.quantity) <= 0) {
+        return res.status(400).json({ error: 'Quantity must be greater than 0 for each item' });
+      }
+    }
+
+    // Consolidate duplicate items for the same listing to prevent over-deduction
+    const consolidatedMap = new Map();
+    for (const item of items) {
+      const listingId = Number(item.listingId);
+      const qty = Number(item.quantity);
+      consolidatedMap.set(listingId, (consolidatedMap.get(listingId) || 0) + qty);
     }
 
     const connection = await pool.getConnection();
@@ -44,36 +58,60 @@ export const createOrder = async (req, res) => {
         buyerId = buyerRows[0].id;
       }
 
-      // Get listing details and check availability (adapt to schema)
+      // Get all listing details and check availability (adapt to schema)
       const useNewListingsSchema = await hasColumn('produce_listings', 'farmer_user_id');
       const listingSelectSql = useNewListingsSchema
         ? 'SELECT id, farmer_user_id as farmerId, crop as category, unit, title as name, price_per_unit as pricePerUnit, quantity as availableQuantity, region as location FROM produce_listings WHERE id = ? AND status = "active"'
         : 'SELECT id, farmer_id as farmerId, category as category, unit, name as name, price_per_kg as pricePerUnit, available_quantity as availableQuantity, location as location FROM produce_listings WHERE id = ? AND status = "active"';
+
+      const listings = [];
+      let totalOrderValue = 0;
+      let primaryFarmerId = null;
+
+      // Validate all listings (using consolidated quantities) and calculate totals
+      for (const [listingId, totalRequested] of consolidatedMap.entries()) {
       const [listingRows] = await connection.execute(listingSelectSql, [listingId]);
 
       if (listingRows.length === 0) {
         await connection.rollback();
         connection.release();
-        return res.status(404).json({ error: 'Listing not found or inactive' });
+          return res.status(404).json({ error: `Listing ${item.listingId} not found or inactive` });
       }
 
       const listing = listingRows[0];
 
-      if (listing.availableQuantity < quantity) {
+        if (Number(listing.availableQuantity) < Number(totalRequested)) {
         await connection.rollback();
         connection.release();
-        return res.status(400).json({ error: 'Insufficient quantity available' });
+          return res.status(400).json({ error: `Insufficient quantity available for listing ${listingId}` });
       }
 
-      // Calculate totals (server-trusted)
+        // Calculate line total
       const pricePerUnit = Number(listing.pricePerUnit) || 0;
-      const quantityNum = Number(quantity) || 0;
+        const quantityNum = Number(totalRequested) || 0;
       const lineTotal = pricePerUnit * quantityNum;
+        
+        listings.push({
+          ...listing,
+          requestedQuantity: quantityNum,
+          lineTotal
+        });
+
+        totalOrderValue += lineTotal;
+        
+        // Set primary farmer (first one, or could be logic to group by farmer)
+        if (!primaryFarmerId) {
+          primaryFarmerId = listing.farmerId;
+        }
+      }
 
       // Create order (handle legacy/new orders schema)
       const useNewOrdersSchema = await hasColumn('orders', 'buyer_user_id');
       const hasSubtotalCol = await hasColumn('orders', 'subtotal');
       const hasTotalCol = await hasColumn('orders', 'total');
+      const hasDeliveryAddressCol = await hasColumn('orders', 'delivery_address');
+      const hasDeliveryNotesCol = await hasColumn('orders', 'delivery_notes');
+      const hasPaymentMethodCol = await hasColumn('orders', 'payment_method');
 
       const buyerCol = useNewOrdersSchema ? 'buyer_user_id' : 'buyer_id';
       const farmerCol = useNewOrdersSchema ? 'farmer_user_id' : 'farmer_id';
@@ -81,16 +119,28 @@ export const createOrder = async (req, res) => {
       // Build dynamic insert
       const cols = [buyerCol, farmerCol, 'status'];
       const placeholders = ['?', '?', `'pending'`];
-      const params = [buyerId, listing.farmerId];
+      const params = [buyerId, primaryFarmerId];
 
       if (hasSubtotalCol) {
-        cols.push('subtotal'); placeholders.push('?'); params.push(lineTotal);
+        cols.push('subtotal'); placeholders.push('?'); params.push(totalOrderValue);
       } else if (hasTotalCol) {
-        cols.push('total'); placeholders.push('?'); params.push(lineTotal);
+        cols.push('total'); placeholders.push('?'); params.push(totalOrderValue);
       }
 
       cols.push('currency'); placeholders.push(`'ETB'`);
-      cols.push('notes'); placeholders.push('?'); params.push(notes ?? null);
+      
+      if (hasDeliveryAddressCol) {
+        cols.push('delivery_address'); placeholders.push('?'); params.push(deliveryAddress || null);
+      }
+      
+      if (hasDeliveryNotesCol) {
+        cols.push('delivery_notes'); placeholders.push('?'); params.push(deliveryNotes || null);
+      }
+      
+      if (hasPaymentMethodCol) {
+        cols.push('payment_method'); placeholders.push('?'); params.push(paymentMethod || 'cash_on_delivery');
+      }
+      
       cols.push('created_at'); placeholders.push('NOW()');
 
       const insertOrderSql = `INSERT INTO orders (${cols.join(', ')}) VALUES (${placeholders.join(', ')})`;
@@ -98,7 +148,8 @@ export const createOrder = async (req, res) => {
 
       const orderId = orderResult.insertId;
 
-      // Insert order item (snapshot)
+      // Insert order items (snapshot) for each item
+          for (const listing of listings) {
       await connection.execute(
         `INSERT INTO order_items (
           order_id,
@@ -108,21 +159,35 @@ export const createOrder = async (req, res) => {
           price_per_unit,
           quantity
         ) VALUES (?, ?, ?, ?, ?, ?)`,
-        [orderId, listingId, listing.category || null, listing.unit || 'kg', listing.pricePerUnit || 0, quantity]
+              [orderId, listing.id, listing.category || null, listing.unit || 'kg', listing.pricePerUnit || 0, listing.requestedQuantity]
       );
+          }
 
-      // Update listing availability (handle both schemas)
+      // Update listing availability (handle both schemas) for each listing
       const hasQuantityCol = await hasColumn('produce_listings', 'quantity');
+          for (const listing of listings) {
+            const requested = Number(listing.requestedQuantity);
+            const available = Number(listing.availableQuantity);
+
+            // If this purchase would zero out stock, avoid setting it to 0 to satisfy DB check constraints.
+            if (requested === available) {
+              await connection.execute('UPDATE produce_listings SET status = ? WHERE id = ?', ['sold_out', listing.id]);
+              continue;
+            }
+
       if (hasQuantityCol) {
-        await connection.execute('UPDATE produce_listings SET quantity = quantity - ? WHERE id = ?', [quantity, listingId]);
+              await connection.execute('UPDATE produce_listings SET quantity = quantity - ? WHERE id = ?', [requested, listing.id]);
       } else {
-        await connection.execute('UPDATE produce_listings SET available_quantity = available_quantity - ? WHERE id = ?', [quantity, listingId]);
+              await connection.execute('UPDATE produce_listings SET available_quantity = available_quantity - ? WHERE id = ?', [requested, listing.id]);
+            }
       }
 
-      // Update listing status if quantity becomes 0
-      const remaining = listing.availableQuantity - Number(quantity);
+      // Update listing status if quantity becomes 0 for each listing
+      for (const listing of listings) {
+        const remaining = listing.availableQuantity - Number(listing.requestedQuantity);
       if (remaining === 0) {
-        await connection.execute('UPDATE produce_listings SET status = "sold_out" WHERE id = ?', [listingId]);
+          await connection.execute('UPDATE produce_listings SET status = "sold_out" WHERE id = ?', [listing.id]);
+        }
       }
 
       // Commit transaction
@@ -156,12 +221,14 @@ export const createOrder = async (req, res) => {
 
       // Notify farmer about new order
       try {
-        await createOrderNotification(orderId, 'order_created', listing.farmerId);
+        await createOrderNotification(orderId, 'order_created', primaryFarmerId);
       } catch (_) {}
 
       res.status(201).json({
         message: 'Order created successfully',
-        order: orderRows[0]
+        order: orderRows[0],
+        totalItems: items.length,
+        totalValue: totalOrderValue
       });
 
     } catch (error) {
@@ -220,11 +287,12 @@ export const getBuyerOrders = async (req, res) => {
         o.created_at as createdAt,
         o.updated_at as updatedAt,
         oi.quantity,
+        oi.listing_id as listingId,
         ${listingName} as name,
         li.url as image,
         ${listingPrice} as pricePerKg,
         u.full_name as farmerName,
-        NULL as farmerAvatar,
+        ua.url as farmerAvatar,
         ${listingRegion} as location,
         u.phone as farmerPhone,
         u.email as farmerEmail
@@ -233,6 +301,7 @@ export const getBuyerOrders = async (req, res) => {
       JOIN produce_listings pl ON oi.listing_id = pl.id
       LEFT JOIN listing_images li ON pl.id = li.listing_id AND li.sort_order = 0
       JOIN users u ON ${joinFarmerUser} = u.id
+      LEFT JOIN user_avatars ua ON u.id = ua.user_id
       ${whereClause}
       ORDER BY o.created_at DESC
       LIMIT ${limitInt} OFFSET ${offsetInt}
@@ -256,44 +325,206 @@ export const getOrderById = async (req, res) => {
 
     const connection = await pool.getConnection();
 
-    const query = `
-      SELECT
-        o.id,
-        o.subtotal as totalPrice,
-        o.status,
-        o.notes,
-        o.created_at as createdAt,
-        o.updated_at as updatedAt,
-        oi.quantity,
-        pl.title as name,
-        pl.description,
-        li.url as image,
-        pl.price_per_unit as pricePerKg,
-        pl.crop as category,
-        u.full_name as farmerName,
-        NULL as farmerAvatar,
-        pl.region as location,
-        u.phone as farmerPhone,
-        u.email as farmerEmail
-      FROM orders o
+    // Detect schema variants for orders and listings
+    const [[hasBuyerUserIdRow]] = await connection.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'buyer_user_id'`
+    );
+    const [[hasDeliveryNotesRow]] = await connection.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'delivery_notes'`
+    );
+    const [[hasDeliveryAddressRow]] = await connection.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'delivery_address'`
+    );
+    const [[hasPaymentMethodRow]] = await connection.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'payment_method'`
+    );
+
+    const [[listingsNewSchemaRow]] = await connection.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'produce_listings' AND COLUMN_NAME = 'farmer_user_id'`
+    );
+
+    const hasBuyerUserId = Number(hasBuyerUserIdRow?.c || 0) > 0;
+    const hasDeliveryNotes = Number(hasDeliveryNotesRow?.c || 0) > 0;
+    const hasDeliveryAddress = Number(hasDeliveryAddressRow?.c || 0) > 0;
+    const hasPaymentMethod = Number(hasPaymentMethodRow?.c || 0) > 0;
+    const listingsNewSchema = Number(listingsNewSchemaRow?.c || 0) > 0;
+
+    const buyerCol = hasBuyerUserId ? 'buyer_user_id' : 'buyer_id';
+    const listingTitle = listingsNewSchema ? 'pl.title' : 'pl.name';
+    const listingPrice = listingsNewSchema ? 'pl.price_per_unit' : 'pl.price_per_kg';
+    const listingRegion = listingsNewSchema ? 'pl.region' : 'pl.location';
+    const listingFarmerCol = listingsNewSchema ? 'pl.farmer_user_id' : 'pl.farmer_id';
+
+    const deliveryAddressSel = hasDeliveryAddress ? 'o.delivery_address' : 'NULL AS delivery_address';
+    const deliveryNotesSel = hasDeliveryNotes ? 'o.delivery_notes' : 'o.notes AS delivery_notes';
+    const paymentMethodSel = hasPaymentMethod ? 'o.payment_method' : 'NULL AS payment_method';
+
+    // Authorize: buyer or farmer involved in the order
+    const authQuery = `
+      SELECT 1 FROM orders o
       JOIN order_items oi ON oi.order_id = o.id
       JOIN produce_listings pl ON oi.listing_id = pl.id
-      JOIN users u ON pl.farmer_id = u.id
-      LEFT JOIN listing_images li ON pl.id = li.listing_id AND li.sort_order = 0
-      WHERE o.id = ? AND (o.buyer_id = (SELECT id FROM users WHERE firebase_uid = ?) OR pl.farmer_id = (SELECT id FROM users WHERE firebase_uid = ?))
+      WHERE o.id = ? AND (o.${buyerCol} = (SELECT id FROM users WHERE firebase_uid = ?) OR ${listingFarmerCol} = (SELECT id FROM users WHERE firebase_uid = ?))
+      LIMIT 1
     `;
-
-    const [rows] = await connection.execute(query, [id, userFirebaseUid, userFirebaseUid]);
-    connection.release();
-
-    if (rows.length === 0) {
+    const [authRows] = await connection.execute(authQuery, [id, userFirebaseUid, userFirebaseUid]);
+    if (authRows.length === 0) {
+      connection.release();
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    res.json(rows[0]);
+    // Base order
+    const [orderRows] = await connection.execute(
+      `SELECT o.id, o.status, o.created_at AS createdAt, o.updated_at AS updatedAt,
+              COALESCE(o.subtotal, o.total) AS totalPrice,
+              ${paymentMethodSel}, ${deliveryAddressSel}, ${deliveryNotesSel}
+       FROM orders o WHERE o.id = ? LIMIT 1`,
+      [id]
+    );
+
+    // Single representative listing for header (farmer info)
+    const [headerRows] = await connection.execute(
+      `SELECT ${listingTitle} AS name, ${listingRegion} AS location, ${listingPrice} AS pricePerKg,
+              u.full_name AS farmerName, ua.url AS farmerAvatar, u.phone AS farmerPhone, u.email AS farmerEmail,
+              li.url AS image
+       FROM order_items oi
+       JOIN produce_listings pl ON oi.listing_id = pl.id
+       JOIN users u ON ${listingFarmerCol} = u.id
+      LEFT JOIN listing_images li ON pl.id = li.listing_id AND li.sort_order = 0
+       LEFT JOIN user_avatars ua ON u.id = ua.user_id
+       WHERE oi.order_id = ?
+       LIMIT 1`,
+      [id]
+    );
+
+    // Items array
+    const [items] = await connection.execute(
+      `SELECT oi.id, oi.listing_id, oi.quantity, ${listingTitle} AS name, ${listingPrice} AS price_per_unit, NULL AS image
+       FROM order_items oi
+       JOIN produce_listings pl ON oi.listing_id = pl.id
+       WHERE oi.order_id = ?`,
+      [id]
+    );
+
+    connection.release();
+
+    if (orderRows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const base = orderRows[0];
+    const header = headerRows[0] || {};
+
+    res.json({
+      id: base.id,
+      status: base.status,
+      createdAt: base.createdAt,
+      updatedAt: base.updatedAt,
+      totalPrice: Number(base.totalPrice || 0),
+      payment_method: base.payment_method || null,
+      delivery_address: base.delivery_address || null,
+      delivery_notes: base.delivery_notes || null,
+      ...header,
+      items
+    });
   } catch (error) {
     console.error('Error fetching order by ID:', error);
     res.status(500).json({ error: 'Failed to fetch order' });
+  }
+};
+
+// Admin: Get detailed order by ID (read-only)
+export const getAdminOrderById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const uid = req.user?.uid;
+    const [me] = await pool.query('SELECT role FROM users WHERE firebase_uid = ? LIMIT 1', [uid]);
+    if (me.length === 0) return res.status(404).json({ error: 'User not found' });
+    if (me[0].role !== 'admin') return res.status(403).json({ error: 'Access denied. Admin role required.' });
+
+    // Detect optional columns
+    const detectCol = async (table, col) => {
+      const [[r]] = await pool.query(
+        `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [table, col]
+      );
+      return Number(r?.c || 0) > 0;
+    };
+
+    const hasCurrency = await detectCol('orders', 'currency');
+    const hasPaymentMethod = await detectCol('orders', 'payment_method');
+    const hasDeliveryAddress = await detectCol('orders', 'delivery_address');
+    const hasDeliveryNotes = await detectCol('orders', 'delivery_notes');
+
+    const currencySel = hasCurrency ? 'o.currency' : "NULL AS currency";
+    const paymentSel = hasPaymentMethod ? 'o.payment_method' : "NULL AS payment_method";
+    const addrSel = hasDeliveryAddress ? 'o.delivery_address' : "NULL AS delivery_address";
+    const notesSel = hasDeliveryNotes ? 'o.delivery_notes' : "NULL AS delivery_notes";
+
+    // Base order
+    const [orderRows] = await pool.query(
+      `SELECT o.id, o.status, o.created_at, o.updated_at,
+              COALESCE(o.subtotal, o.total) AS total,
+              ${currencySel}, ${paymentSel}, ${addrSel}, ${notesSel}
+       FROM orders o WHERE o.id = ? LIMIT 1`, [id]
+    );
+    if (orderRows.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    // Buyer and farmer names/emails with schema detection
+    const hasBuyerUserId = await detectCol('orders', 'buyer_user_id');
+    const hasBuyerId = await detectCol('orders', 'buyer_id');
+    const hasFarmerUserId = await detectCol('orders', 'farmer_user_id');
+    const hasFarmerId = await detectCol('orders', 'farmer_id');
+
+    const buyerIdExpr = hasBuyerUserId ? 'o.buyer_user_id' : (hasBuyerId ? 'o.buyer_id' : null);
+    const farmerIdExpr = hasFarmerUserId ? 'o.farmer_user_id' : (hasFarmerId ? 'o.farmer_id' : null);
+
+    let buyer = null;
+    if (buyerIdExpr) {
+      const [bRows] = await pool.query(
+        `SELECT u.full_name AS name, u.email FROM users u
+         WHERE u.id = (SELECT ${buyerIdExpr} FROM orders o WHERE o.id = ?)
+         LIMIT 1`, [id]
+      );
+      buyer = bRows[0] || null;
+    }
+
+    let farmer = null;
+    if (farmerIdExpr) {
+      const [fRows] = await pool.query(
+        `SELECT u.full_name AS name, u.email FROM users u
+         WHERE u.id = (SELECT ${farmerIdExpr} FROM orders o WHERE o.id = ?)
+         LIMIT 1`, [id]
+      );
+      farmer = fRows[0] || null;
+    }
+
+    // Items
+    const [items] = await pool.query(
+      `SELECT oi.listing_id, oi.quantity, pl.title AS name, pl.unit,
+              pl.price_per_unit AS price_per_unit
+       FROM order_items oi
+       JOIN produce_listings pl ON pl.id = oi.listing_id
+       WHERE oi.order_id = ?`, [id]
+    );
+
+    res.json({
+      id: orderRows[0].id,
+      status: orderRows[0].status,
+      created_at: orderRows[0].created_at,
+      updated_at: orderRows[0].updated_at,
+      total: Number(orderRows[0].total || 0),
+      currency: orderRows[0].currency || 'ETB',
+      payment_method: orderRows[0].payment_method || null,
+      delivery_address: orderRows[0].delivery_address || null,
+      delivery_notes: orderRows[0].delivery_notes || null,
+      buyer: buyer || null,
+      farmer: farmer || null,
+      items
+    });
+  } catch (error) {
+    console.error('Error fetching admin order details:', error);
+    res.status(500).json({ error: 'Failed to fetch order details' });
   }
 };
 
@@ -301,14 +532,21 @@ export const getOrderById = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
-    const userId = req.user.id;
+    const { status: requestedStatus } = req.body;
+    const requesterUserId = req.user.id;
 
     const connection = await pool.getConnection();
 
-        // Verify the user is the farmer for this order
+    // Detect schema variants
+    const hasFarmerUserId = (await connection.query(`SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'farmer_user_id' LIMIT 1`))[0].length > 0;
+    const hasBuyerUserId = (await connection.query(`SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'buyer_user_id' LIMIT 1`))[0].length > 0;
+
+    const farmerCol = hasFarmerUserId ? 'farmer_user_id' : 'farmer_id';
+    const buyerCol = hasBuyerUserId ? 'buyer_user_id' : 'buyer_id';
+
+    // Load current order and verify farmer ownership
     const [orderRows] = await connection.execute(
-      `SELECT o.farmer_id FROM orders o WHERE o.id = ?`,
+      `SELECT id, status, ${farmerCol} as farmerId, ${buyerCol} as buyerId FROM orders WHERE id = ?`,
       [id]
     );
 
@@ -317,37 +555,45 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    if (orderRows[0].farmer_id !== userId) {
+    const order = orderRows[0];
+    if (order.farmerId !== requesterUserId) {
       connection.release();
       return res.status(403).json({ error: 'Not authorized to update this order' });
     }
 
-    // Update order status
+    const currentStatus = order.status;
+
+    // Allowed transitions for farmer
+    const allowedTransitions = {
+      pending: new Set(['confirmed', 'cancelled']),
+      confirmed: new Set(['shipped', 'cancelled']),
+      shipped: new Set(['completed'])
+    };
+
+    if (!allowedTransitions[currentStatus] || !allowedTransitions[currentStatus].has(requestedStatus)) {
+      connection.release();
+      return res.status(400).json({ error: `Invalid transition from ${currentStatus} to ${requestedStatus}` });
+    }
+
     await connection.execute(
       'UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?',
-      [status, id]
+      [requestedStatus, id]
     );
 
     connection.release();
-
     res.json({ message: 'Order status updated successfully' });
 
-    // Fire notification to buyer based on new status (best-effort)
+    // Notify buyer (best-effort)
     try {
-      // Lookup buyer id for this order
-      const [rows] = await pool.query('SELECT buyer_id FROM orders WHERE id = ? LIMIT 1', [id]);
-      if (rows.length > 0) {
-        const buyerId = rows[0].buyer_id;
         const statusToType = {
           confirmed: 'order_confirmed',
           shipped: 'order_shipped',
           completed: 'order_completed',
           cancelled: 'order_cancelled'
         };
-        const notifType = statusToType[status];
+      const notifType = statusToType[requestedStatus];
         if (notifType) {
-          await createOrderNotification(Number(id), notifType, buyerId);
-        }
+        await createOrderNotification(Number(id), notifType, order.buyerId);
       }
     } catch (_) {}
   } catch (error) {
@@ -360,66 +606,84 @@ export const updateOrderStatus = async (req, res) => {
 export const cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const buyerId = req.user.id;
+    const requesterUserId = req.user.id;
 
     const connection = await pool.getConnection();
-
-    // Start transaction
     await connection.beginTransaction();
-
     try {
-      // Get order details
-      const [orderRows] = await connection.execute(
-        'SELECT * FROM orders WHERE id = ? AND buyer_id = ? AND status = "pending"',
-        [id, buyerId]
-      );
+      // Detect schema variants
+      const hasFarmerUserId = (await connection.query(`SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'farmer_user_id' LIMIT 1`))[0].length > 0;
+      const hasBuyerUserId = (await connection.query(`SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'buyer_user_id' LIMIT 1`))[0].length > 0;
+      const hasListingQty = (await connection.query(`SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'produce_listings' AND COLUMN_NAME = 'quantity' LIMIT 1`))[0].length > 0;
 
+      const farmerCol = hasFarmerUserId ? 'farmer_user_id' : 'farmer_id';
+      const buyerCol = hasBuyerUserId ? 'buyer_user_id' : 'buyer_id';
+      const qtyCol = hasListingQty ? 'quantity' : 'available_quantity';
+
+      // Load order to verify permissions and status
+      const [orderRows] = await connection.execute(
+        `SELECT id, status, ${farmerCol} as farmerId, ${buyerCol} as buyerId FROM orders WHERE id = ?`,
+        [id]
+      );
       if (orderRows.length === 0) {
         await connection.rollback();
         connection.release();
-        return res.status(404).json({ error: 'Order not found or cannot be cancelled' });
+        return res.status(404).json({ error: 'Order not found' });
       }
 
       const order = orderRows[0];
+      if (order.status !== 'pending') {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({ error: 'Only pending orders can be cancelled' });
+      }
 
-      // Update order status to cancelled
+      // Allow cancellation by buyer or farmer (decline)
+      if (order.buyerId !== requesterUserId && order.farmerId !== requesterUserId) {
+        await connection.rollback();
+        connection.release();
+        return res.status(403).json({ error: 'Not authorized to cancel this order' });
+      }
+
+      // Restore quantities for all order items
+      const [items] = await connection.execute(
+        'SELECT listing_id as listingId, quantity FROM order_items WHERE order_id = ?',
+        [id]
+      );
+      for (const item of items) {
+        await connection.execute(
+          `UPDATE produce_listings SET ${qtyCol} = ${qtyCol} + ? WHERE id = ?`,
+          [item.quantity, item.listingId]
+        );
+        // If listing was sold_out and now has stock, set to active
       await connection.execute(
-        'UPDATE orders SET status = "cancelled", updated_at = NOW() WHERE id = ?',
+          `UPDATE produce_listings SET status = 'active' WHERE id = ? AND status = 'sold_out' AND ${qtyCol} > 0`,
+          [item.listingId]
+      );
+      }
+
+      // Set order to cancelled
+      await connection.execute(
+        `UPDATE orders SET status = 'cancelled', updated_at = NOW() WHERE id = ?`,
         [id]
       );
 
-      // Restore listing quantity
-      await connection.execute(
-        'UPDATE produce_listings SET available_quantity = available_quantity + ? WHERE id = ?',
-        [order.quantity, order.listing_id]
-      );
-
-      // Update listing status back to active if it was sold out
-      await connection.execute(
-        'UPDATE produce_listings SET status = "active" WHERE id = ? AND status = "sold_out"',
-        [order.listing_id]
-      );
-
-      // Commit transaction
       await connection.commit();
-
       connection.release();
 
       res.json({ message: 'Order cancelled successfully' });
 
-      // Notify farmer that buyer cancelled (best-effort)
+      // Notify relevant party (best-effort)
       try {
-        const [farmerRows] = await pool.query('SELECT farmer_id FROM orders WHERE id = ? LIMIT 1', [id]);
-        if (farmerRows.length > 0) {
-          await createOrderNotification(Number(id), 'order_cancelled', farmerRows[0].farmer_id);
-        }
+        // If farmer declined/cancelled, notify the buyer; if buyer cancelled, notify the farmer
+        const notifyUserId = (order.farmerId === requesterUserId) ? order.buyerId : order.farmerId;
+        await createOrderNotification(Number(id), 'order_cancelled', notifyUserId);
       } catch (_) {}
 
     } catch (error) {
       await connection.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('Error cancelling order:', error);
     res.status(500).json({ error: 'Failed to cancel order' });
@@ -450,7 +714,15 @@ export const getFarmerOrders = async (req, res) => {
       }
       userId = userRows[0].id;
     }
-    let whereClause = "WHERE o.farmer_id = ?";
+
+    // Check which farmer column exists
+    const hasFarmerUserId = (await pool.query(`SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'farmer_user_id' LIMIT 1`))[0].length > 0;
+    const hasBuyerUserId = (await pool.query(`SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'buyer_user_id' LIMIT 1`))[0].length > 0;
+
+    const farmerCol = hasFarmerUserId ? 'farmer_user_id' : 'farmer_id';
+    const buyerCol = hasBuyerUserId ? 'buyer_user_id' : 'buyer_id';
+
+    let whereClause = `WHERE o.${farmerCol} = ?`;
     let params = [userId];
 
     if (status) {
@@ -471,7 +743,7 @@ export const getFarmerOrders = async (req, res) => {
         bp.company_name,
         bp.business_type
       FROM orders o
-      JOIN users u ON o.buyer_id = u.id
+      JOIN users u ON o.${buyerCol} = u.id
       LEFT JOIN buyer_profiles bp ON u.id = bp.user_id
       ${whereClause}
       ORDER BY o.created_at DESC
@@ -479,19 +751,38 @@ export const getFarmerOrders = async (req, res) => {
       [...params, parseInt(limit), offset]
     );
 
-    // Get order items for each order
+    // Determine listing schema for farmer join and pricing
+    const listingsNewSchema = (await pool.query(`SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'produce_listings' AND COLUMN_NAME = 'farmer_user_id' LIMIT 1`))[0].length > 0;
+    const listingFarmerCol = listingsNewSchema ? 'pl.farmer_user_id' : 'pl.farmer_id';
+    const listingTitleCol = listingsNewSchema ? 'pl.title' : 'pl.name';
+    const listingPriceCol = listingsNewSchema ? 'pl.price_per_unit' : 'pl.price_per_kg';
+
+    // Get order items for each order, filtered to this farmer's listings only
     for (const order of orders) {
       const [items] = await pool.query(
         `SELECT
-          oi.*,
-          pl.title as listing_title,
+          oi.id,
+          oi.order_id,
+          oi.listing_id,
+          oi.quantity,
+          ${listingTitleCol} as listing_title,
+          ${listingPriceCol} as price_per_unit,
           NULL as image_url
         FROM order_items oi
         JOIN produce_listings pl ON oi.listing_id = pl.id
-        WHERE oi.order_id = ?`,
-        [order.id]
+        WHERE oi.order_id = ? AND ${listingFarmerCol} = ?`,
+        [order.id, userId]
       );
+
       order.items = items;
+
+      // Recompute per-farmer subtotal and expose as total for farmer view
+      const perFarmerSubtotal = items.reduce((sum, it) => sum + Number(it.price_per_unit || 0) * Number(it.quantity || 0), 0);
+      // Preserve original total in case the client needs it
+      if (order.subtotal !== undefined) order.original_subtotal = order.subtotal;
+      if (order.total !== undefined) order.original_total = order.total;
+      order.subtotal = perFarmerSubtotal;
+      order.total = perFarmerSubtotal;
     }
 
     // Get total count
@@ -585,5 +876,121 @@ export const getOrderStats = async (req, res) => {
   } catch (error) {
     console.error('Error fetching order stats:', error);
     res.status(500).json({ error: "Failed to fetch order statistics" });
+  }
+};
+
+// Admin: Get all orders with optional filters and pagination
+export const getAllOrders = async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    const { status, search, startDate, endDate, limit = 50, offset = 0 } = req.query;
+
+    // Enforce role-based access
+    const [userRows] = await pool.query(
+      'SELECT id, role FROM users WHERE firebase_uid = ?',
+      [uid]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (userRows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin role required.' });
+    }
+
+    // Detect schema variants to avoid referencing non-existent columns
+    const [[hasBuyerUserIdRow]] = await pool.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'buyer_user_id'`
+    );
+    const [[hasBuyerIdRow]] = await pool.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'buyer_id'`
+    );
+    const [[hasFarmerUserIdRow]] = await pool.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'farmer_user_id'`
+    );
+    const [[hasFarmerIdRow]] = await pool.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'farmer_id'`
+    );
+    const hasBuyerUserId = Number(hasBuyerUserIdRow?.c || 0) > 0;
+    const hasBuyerId = Number(hasBuyerIdRow?.c || 0) > 0;
+    const hasFarmerUserId = Number(hasFarmerUserIdRow?.c || 0) > 0;
+    const hasFarmerId = Number(hasFarmerIdRow?.c || 0) > 0;
+
+    const buyerJoin = hasBuyerUserId
+      ? 'LEFT JOIN users buyer ON buyer.id = o.buyer_user_id'
+      : (hasBuyerId ? 'LEFT JOIN users buyer ON buyer.id = o.buyer_id' : '');
+    const farmerJoin = hasFarmerUserId
+      ? 'LEFT JOIN users farmer ON farmer.id = o.farmer_user_id'
+      : (hasFarmerId ? 'LEFT JOIN users farmer ON farmer.id = o.farmer_id' : '');
+
+    const buyerNameSelect = (hasBuyerUserId || hasBuyerId)
+      ? 'buyer.full_name AS buyer_name'
+      : 'NULL AS buyer_name';
+    const farmerNameSelect = (hasFarmerUserId || hasFarmerId)
+      ? 'farmer.full_name AS farmer_name'
+      : 'NULL AS farmer_name';
+
+    let where = '1=1';
+    const params = [];
+    if (status && status !== 'all') {
+      where += ' AND o.status = ?';
+      params.push(status);
+    }
+    if (startDate) {
+      where += ' AND o.created_at >= ?';
+      params.push(startDate);
+    }
+    if (endDate) {
+      where += ' AND o.created_at <= ?';
+      params.push(endDate);
+    }
+    if (search) {
+      const s = `%${search}%`;
+      if (hasBuyerUserId || hasBuyerId || hasFarmerUserId || hasFarmerId) {
+        where += ' AND (CAST(o.id AS CHAR) LIKE ?'
+          + (hasBuyerUserId || hasBuyerId ? ' OR buyer.full_name LIKE ?' : '')
+          + (hasFarmerUserId || hasFarmerId ? ' OR farmer.full_name LIKE ?' : '')
+          + ')';
+        params.push(s);
+        if (hasBuyerUserId || hasBuyerId) params.push(s);
+        if (hasFarmerUserId || hasFarmerId) params.push(s);
+      } else {
+        // Fallback: search by order id only if no joins available
+        where += ' AND CAST(o.id AS CHAR) LIKE ?';
+        params.push(s);
+      }
+    }
+
+    const sql = `SELECT
+         o.id,
+         o.status,
+         o.created_at,
+         o.updated_at,
+         COALESCE(o.subtotal, o.total) AS total,
+         o.payment_method,
+         ${buyerNameSelect},
+         ${farmerNameSelect},
+         (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count
+       FROM orders o
+       ${buyerJoin}
+       ${farmerJoin}
+       WHERE ${where}
+       ORDER BY o.created_at DESC
+       LIMIT ? OFFSET ?`;
+
+    const [rows] = await pool.query(sql, [...params, Number(limit), Number(offset)]);
+
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM orders o
+       ${buyerJoin}
+       ${farmerJoin}
+       WHERE ${where}`,
+      params
+    );
+
+    res.json({ orders: rows, total: countRows[0]?.total || 0, limit: Number(limit), offset: Number(offset) });
+  } catch (error) {
+    console.error('Error fetching admin orders:', error);
+    res.status(500).json({ error: 'Failed to fetch orders' });
   }
 };

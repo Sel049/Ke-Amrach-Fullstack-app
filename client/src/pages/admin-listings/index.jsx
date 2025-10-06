@@ -4,9 +4,12 @@ import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
+import { listingService } from '../../services/apiService';
+import { useLanguage } from '../../hooks/useLanguage.jsx';
 
 const AdminListings = () => {
   const { user, isAuthenticated } = useAuth();
+  const { language } = useLanguage();
   const [listings, setListings] = useState([]);
   const [filteredListings, setFilteredListings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -15,65 +18,21 @@ const AdminListings = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedListings, setSelectedListings] = useState([]);
 
-  // Mock listings data
-  const mockListings = [
-    {
-      id: 1,
-      title: 'Premium Teff',
-      farmer: 'Alemayehu Kebede',
-      category: 'grains',
-      price: 85,
-      quantity: 150,
-      status: 'active',
-      verified: true,
-      createdAt: '2024-01-15',
-      image: 'https://images.pexels.com/photos/4110256/pexels-photo-4110256.jpeg',
-      views: 234,
-      orders: 12
-    },
-    {
-      id: 2,
-      title: 'Organic Coffee Beans',
-      farmer: 'Meron Tadesse',
-      category: 'coffee',
-      price: 320,
-      quantity: 75,
-      status: 'pending',
-      verified: false,
-      createdAt: '2024-01-18',
-      image: 'https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg',
-      views: 156,
-      orders: 8
-    },
-    {
-      id: 3,
-      title: 'Fresh Wheat',
-      farmer: 'Getachew Molla',
-      category: 'grains',
-      price: 45,
-      quantity: 200,
-      status: 'active',
-      verified: true,
-      createdAt: '2024-01-10',
-      image: 'https://images.pexels.com/photos/1595104/pexels-photo-1595104.jpeg',
-      views: 189,
-      orders: 15
-    },
-    {
-      id: 4,
-      title: 'Yellow Maize',
-      farmer: 'Hanna Wolde',
-      category: 'grains',
-      price: 35,
-      quantity: 300,
-      status: 'suspended',
-      verified: true,
-      createdAt: '2024-01-12',
-      image: 'https://images.pexels.com/photos/547263/pexels-photo-547263.jpeg',
-      views: 98,
-      orders: 5
-    }
-  ];
+  // Transform API listing to UI shape
+  const transformListing = (l) => ({
+    id: l.id,
+    title: l.title,
+    farmer: l.farmer_name,
+    category: l.crop,
+    price: l.price_per_unit,
+    quantity: l.quantity,
+    status: l.status,
+    verified: !!l.farmer_avatar, // proxy until explicit verification exists
+    createdAt: l.created_at,
+    image: l.image,
+    views: l.views ?? 0,
+    orders: l.orders_count ?? 0
+  });
 
   useEffect(() => {
     loadListings();
@@ -86,10 +45,12 @@ const AdminListings = () => {
   const loadListings = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setListings(mockListings);
+      const { listings: apiListings = [] } = await listingService.getAllListings?.();
+      const mapped = apiListings.map(transformListing);
+      setListings(mapped);
     } catch (error) {
       console.error('Failed to load listings:', error);
+      setListings([]);
     } finally {
       setIsLoading(false);
     }
@@ -116,40 +77,57 @@ const AdminListings = () => {
     setFilteredListings(filtered);
   };
 
-  const handleListingAction = (listingId, action) => {
-    setListings(prev => prev.map(listing => {
-      if (listing.id === listingId) {
-        switch (action) {
-          case 'approve':
-            return { ...listing, status: 'active', verified: true };
-          case 'suspend':
-            return { ...listing, status: 'suspended' };
-          case 'reject':
-            return { ...listing, status: 'rejected' };
-          case 'delete':
-            return { ...listing, status: 'deleted' };
-          default:
-            return listing;
-        }
+  const handleListingAction = async (listingId, action) => {
+    try {
+      let apiResult;
+      if (action === 'suspend') {
+        apiResult = await listingService.adminUpdateListingStatus(listingId, 'suspended');
+      } else if (action === 'approve') {
+        apiResult = await listingService.adminUpdateListingStatus(listingId, 'active');
+      } else {
+        // Non-status actions fall back to local state update
       }
-      return listing;
-    }));
+
+      // Refresh locally
+      setListings(prev => prev.map(listing => {
+        if (listing.id === listingId) {
+          const apiStatus = apiResult?.status;
+          switch (action) {
+            case 'approve':
+              return { ...listing, status: apiStatus || 'active', verified: true };
+            case 'suspend':
+              return { ...listing, status: apiStatus || 'suspended' };
+            case 'reject':
+              return { ...listing, status: 'rejected' };
+            case 'delete':
+              return { ...listing, status: 'deleted' };
+            default:
+              return listing;
+          }
+        }
+        return listing;
+      }));
+    } catch (error) {
+      console.error('Failed to update listing status:', error);
+    }
   };
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      active: { color: 'bg-green-100 text-green-800', icon: 'CheckCircle' },
-      pending: { color: 'bg-yellow-100 text-yellow-800', icon: 'Clock' },
-      suspended: { color: 'bg-red-100 text-red-800', icon: 'XCircle' },
-      rejected: { color: 'bg-gray-100 text-gray-800', icon: 'X' },
-      deleted: { color: 'bg-gray-100 text-gray-800', icon: 'Trash2' }
+      active: { color: 'bg-green-100 text-green-800', icon: 'CheckCircle', label: 'Active' },
+      pending: { color: 'bg-yellow-100 text-yellow-800', icon: 'Clock', label: 'Pending' },
+      suspended: { color: 'bg-red-100 text-red-800', icon: 'XCircle', label: 'Suspended' },
+      // When the backend maps a suspension to `expired`, show it as Suspended for admins
+      expired: { color: 'bg-red-100 text-red-800', icon: 'XCircle', label: 'Suspended' },
+      rejected: { color: 'bg-gray-100 text-gray-800', icon: 'X', label: 'Rejected' },
+      deleted: { color: 'bg-gray-100 text-gray-800', icon: 'Trash2', label: 'Deleted' }
     };
     const config = statusConfig[status] || statusConfig.pending;
     
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
         <Icon name={config.icon} size={12} className="mr-1" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {config.label}
       </span>
     );
   };
@@ -191,14 +169,13 @@ const AdminListings = () => {
           <div className="px-4 mx-auto max-w-7xl lg:px-6 py-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Listing Management</h1>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{language === 'am' ? 'የዝርዝር አስተዳደር' : 'Listing Management'}</h1>
                 <p className="mt-2 text-slate-600 dark:text-slate-400">
-                  Manage product listings, approvals, and content moderation
+                  {language === 'am' ? 'የምርት ዝርዝሮችን እና ማረጋገጫዎችን ያቀናብሩ' : 'Manage product listings, approvals, and content moderation'}
                 </p>
               </div>
               <div className="flex items-center space-x-4">
-                <Button variant="outline" size="sm" iconName="Download">Export</Button>
-                <Button variant="primary" size="sm" iconName="Plus">Add Listing</Button>
+                <Button variant="outline" size="sm" iconName="Download">{language === 'am' ? 'ወደ ውጭ አስወግድ' : 'Export'}</Button>
               </div>
             </div>
           </div>
@@ -210,7 +187,7 @@ const AdminListings = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Listings</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ጠቅላላ ዝርዝሮች' : 'Total Listings'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{listings.length}</p>
                 </div>
                 <Icon name="Package" size={24} className="text-blue-600 dark:text-blue-400" />
@@ -219,7 +196,7 @@ const AdminListings = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Active Listings</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ንቁ ዝርዝሮች' : 'Active Listings'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
                     {listings.filter(l => l.status === 'active').length}
                   </p>
@@ -230,7 +207,7 @@ const AdminListings = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Pending Review</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'በግምገማ ላይ' : 'Pending Review'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
                     {listings.filter(l => l.status === 'pending').length}
                   </p>
@@ -241,7 +218,7 @@ const AdminListings = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Suspended</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ተቋርጧል' : 'Suspended'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
                     {listings.filter(l => l.status === 'suspended').length}
                   </p>
@@ -259,7 +236,7 @@ const AdminListings = () => {
                   <Icon name="Search" size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search listings by title or farmer..."
+                    placeholder={language === 'am' ? 'በአርእስት ወይም በገበሬ ፈልግ...' : 'Search listings by title or farmer...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
@@ -272,23 +249,23 @@ const AdminListings = () => {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
                 >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="pending">Pending</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="rejected">Rejected</option>
+                  <option value="all">{language === 'am' ? 'ሁሉም ሁኔታ' : 'All Status'}</option>
+                  <option value="active">{language === 'am' ? 'ንቁ' : 'Active'}</option>
+                  <option value="pending">{language === 'am' ? 'በመጠባበቅ ላይ' : 'Pending'}</option>
+                  <option value="suspended">{language === 'am' ? 'ተቋርጧል' : 'Suspended'}</option>
+                  <option value="rejected">{language === 'am' ? 'ተትቷል' : 'Rejected'}</option>
                 </select>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
                   className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
                 >
-                  <option value="all">All Categories</option>
-                  <option value="grains">Grains</option>
-                  <option value="coffee">Coffee</option>
-                  <option value="vegetables">Vegetables</option>
-                  <option value="fruits">Fruits</option>
-                  <option value="spices">Spices</option>
+                  <option value="all">{language === 'am' ? 'ሁሉም ምድቦች' : 'All Categories'}</option>
+                  <option value="grains">{language === 'am' ? 'ስንዴ' : 'Grains'}</option>
+                  <option value="coffee">{language === 'am' ? 'ቡና' : 'Coffee'}</option>
+                  <option value="vegetables">{language === 'am' ? 'አትክልት' : 'Vegetables'}</option>
+                  <option value="fruits">{language === 'am' ? 'ፍራፍሬ' : 'Fruits'}</option>
+                  <option value="spices">{language === 'am' ? 'ቅመማ ቅመሞች' : 'Spices'}</option>
                 </select>
               </div>
             </div>
@@ -307,7 +284,7 @@ const AdminListings = () => {
             ) : filteredListings.length === 0 ? (
               <div className="col-span-full text-center py-12">
                 <Icon name="Package" size={48} className="mx-auto mb-4 text-slate-400" />
-                <p className="text-slate-600 dark:text-slate-400">No listings found</p>
+                <p className="text-slate-600 dark:text-slate-400">{language === 'am' ? 'ምንም ዝርዝር አልተገኘም' : 'No listings found'}</p>
               </div>
             ) : (
               filteredListings.map((listing) => (
@@ -394,7 +371,7 @@ const AdminListings = () => {
                           Suspend
                         </Button>
                       )}
-                      {listing.status === 'suspended' && (
+                      {(listing.status === 'suspended' || listing.status === 'expired') && (
                         <Button
                           variant="primary"
                           size="sm"

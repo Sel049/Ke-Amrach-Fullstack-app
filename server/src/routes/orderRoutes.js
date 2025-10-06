@@ -7,7 +7,9 @@ import {
   getOrderById,
   updateOrderStatus,
   cancelOrder,
-  getOrderStats
+  getOrderStats,
+  getAllOrders,
+  getAdminOrderById
 } from "../controllers/orderController.js";
 
 const router = Router();
@@ -19,6 +21,8 @@ router.use(authGuard);
 router.post('/', createOrder);
 router.get('/buyer', getBuyerOrders);
 router.get('/farmer', getFarmerOrders);
+router.get('/admin/all', getAllOrders);
+router.get('/admin/:id', getAdminOrderById);
 router.get('/stats', getOrderStats);
 router.get('/:id', getOrderById);
 

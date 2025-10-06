@@ -1,4 +1,4 @@
-# EthioFarm Connect - Server Setup
+# Server (Node.js + Express) Setup
 
 ## 🚀 Quick Start
 
@@ -8,53 +8,63 @@
    ```
 
 2. **Set up environment variables:**
-   Create a `.env` file in the server directory with:
-   ```env
-   PORT=5000
-   DB_HOST=localhost
-   DB_USER=root
-   DB_PASSWORD=your_password
-   DB_NAME=ke_geberew
-   GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
+   Copy the example file and edit values as needed:
+   ```bash
+   cp env.example .env
    ```
+   Key settings (see `server/env.example` for the full list):
+   - Database: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`
+   - Server: `PORT`, `NODE_ENV`, `ALLOWED_ORIGINS`
+   - Security: `JWT_SECRET`, `SESSION_SECRET`, rate limiting vars
+   - Email (password reset): `SMTP_*`
+   - Optional Firebase Admin: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (PEM with \n)
 
 3. **Database Setup:**
    - Create a MySQL database named `ke_geberew`
-   - Import the database schema (see `database/schema.sql`)
-   - Update `.env` with your database credentials
+   - Import schema (baseline): `server/src/sql/schema.sql`
+   - Optional advanced/payment schemas in `server/src/sql/`
+   - Or run provided scripts in `server/scripts/` (see below)
 
-4. **Firebase Setup:**
-   - Download your Firebase service account key
-   - Save it as `serviceAccountKey.json` in the server directory
+4. **Firebase Setup (optional):**
+   - Prefer environment variables in `.env`:
+     - `FIREBASE_PROJECT_ID`
+     - `FIREBASE_CLIENT_EMAIL`
+     - `FIREBASE_PRIVATE_KEY` (wrap in quotes; use literal \n)
+   - Alternatively, set `USE_APPLICATION_DEFAULT=true` when running on GCP
 
 5. **Start the server:**
    ```bash
    npm run dev
    ```
 
-## 📊 API Endpoint
+## 📊 API Endpoints (samples)
+
+### Public
+- `GET /health` – Health check
+- `GET /public/listings` – Public listings feed
 
 ### Farmer Dashboard
-- `GET /farmer/metrics` - Get farmer dashboard metrics
-- `GET /farmer/listings` - Get farmer's produce listings
-- `GET /farmer/orders` - Get farmer's orderssql 
-- `GET /farmer/activity` - Get recent activity feed
+- `GET /farmer/metrics` – Farmer dashboard metrics
+- `GET /farmer/listings` – Farmer's produce listings
+- `GET /farmer/orders` – Farmer's orders
+- `GET /farmer/activity` – Recent activity
 
 ### Authentication
-- `POST /auth/sync` - Sync user with Firebase
-- `GET /users/me` - Get current user profile
-- `PUT /users/me` - Update user profile
+- `POST /auth/sync` – Sync user with Firebase
+- `GET /users/me` – Current user profile
+- `PUT /users/me` – Update user profile
 
 ## 🗄️ Database Schema
-
-The application expects these tables:
-- `users` - User profiles and authentication
-- `produce_listings` - Farmer's produce listings
-- `orders` - Orders between farmers and buyers
-- `reviews` - Product reviews and ratings
+Core tables are provisioned/ensured at startup where possible (see `server/src/index.js`). Full schemas live in `server/src/sql/`.
 
 ## 🔧 Development
 
-- **Hot reload:** `npm run dev`
-- **Production:** `npm start`
-- **Database connection:** Automatically tested on startup
+- Hot reload: `npm run dev`
+- Production: `npm start`
+- Database connection: tested on startup; key tables ensured if missing
+
+### Useful scripts (see `server/package.json`)
+- `npm run db:bootstrap` – Apply schema and create admin (idempotent)
+- `node scripts/setup-database.js` – Initial DB setup
+- `node scripts/apply-performance-indexes.js` – Add performance indexes
+- `node scripts/seed-market-trends-data.js` – Seed demo data

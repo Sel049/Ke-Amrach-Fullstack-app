@@ -4,76 +4,34 @@ import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
+import { orderService } from '../../services/apiService';
+import apiClient from '../../services/apiService';
+import { useLanguage } from '../../hooks/useLanguage.jsx';
 
 const AdminOrders = () => {
   const { user, isAuthenticated } = useAuth();
+  const { language } = useLanguage();
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  const [viewing, setViewing] = useState(null);
 
-  // Mock orders data
-  const mockOrders = [
-    {
-      id: 'ORD-001',
-      buyer: 'Meron Tadesse',
-      farmer: 'Alemayehu Kebede',
-      items: [
-        { name: 'Premium Teff', quantity: 50, price: 85, total: 4250 },
-        { name: 'Fresh Wheat', quantity: 30, price: 45, total: 1350 }
-      ],
-      status: 'pending',
-      total: 5600,
-      createdAt: '2024-01-20',
-      deliveryDate: '2024-01-25',
-      paymentMethod: 'Bank Transfer',
-      address: 'Addis Ababa, Ethiopia'
-    },
-    {
-      id: 'ORD-002',
-      buyer: 'Hanna Wolde',
-      farmer: 'Getachew Molla',
-      items: [
-        { name: 'Organic Coffee Beans', quantity: 10, price: 320, total: 3200 }
-      ],
-      status: 'confirmed',
-      total: 3200,
-      createdAt: '2024-01-19',
-      deliveryDate: '2024-01-24',
-      paymentMethod: 'Mobile Money',
-      address: 'Bahir Dar, Ethiopia'
-    },
-    {
-      id: 'ORD-003',
-      buyer: 'Dawit Haile',
-      farmer: 'Meron Tadesse',
-      items: [
-        { name: 'Yellow Maize', quantity: 100, price: 35, total: 3500 }
-      ],
-      status: 'shipped',
-      total: 3500,
-      createdAt: '2024-01-18',
-      deliveryDate: '2024-01-23',
-      paymentMethod: 'Cash on Delivery',
-      address: 'Hawassa, Ethiopia'
-    },
-    {
-      id: 'ORD-004',
-      buyer: 'Tigist Bekele',
-      farmer: 'Alemayehu Kebede',
-      items: [
-        { name: 'Red Kidney Beans', quantity: 25, price: 95, total: 2375 }
-      ],
-      status: 'delivered',
-      total: 2375,
-      createdAt: '2024-01-15',
-      deliveryDate: '2024-01-20',
-      paymentMethod: 'Bank Transfer',
-      address: 'Gondar, Ethiopia'
-    }
-  ];
+  // Helper to map API order to UI shape
+  const mapOrder = (o) => ({
+    id: `ORD-${o.id}`,
+    buyer: o.buyer_name,
+    farmer: o.farmer_name,
+    items: [],
+    status: o.status,
+    total: Number(o.total || 0),
+    createdAt: o.created_at,
+    deliveryDate: o.updated_at,
+    paymentMethod: o.payment_method || 'N/A',
+    address: ''
+  });
 
   useEffect(() => {
     loadOrders();
@@ -86,10 +44,12 @@ const AdminOrders = () => {
   const loadOrders = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setOrders(mockOrders);
+      const { orders: apiOrders = [] } = await orderService.getAllOrders?.() || {};
+      const mapped = apiOrders.map(mapOrder);
+      setOrders(mapped);
     } catch (error) {
       console.error('Failed to load orders:', error);
+      setOrders([]);
     } finally {
       setIsLoading(false);
     }
@@ -201,14 +161,13 @@ const AdminOrders = () => {
           <div className="px-4 mx-auto max-w-7xl lg:px-6 py-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Order Management</h1>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{language === 'am' ? 'የትእዛዝ አስተዳደር' : 'Order Management'}</h1>
                 <p className="mt-2 text-slate-600 dark:text-slate-400">
-                  Track and manage orders, payments, and deliveries
+                  {language === 'am' ? 'ትእዛዞችን ክፍያዎችን እና መላኪያዎችን ይከታተሉ' : 'Track and manage orders, payments, and deliveries'}
                 </p>
               </div>
               <div className="flex items-center space-x-4">
-                <Button variant="outline" size="sm" iconName="Download">Export</Button>
-                <Button variant="primary" size="sm" iconName="Plus">Create Order</Button>
+                <Button variant="outline" size="sm" iconName="Download">{language === 'am' ? 'ወደ ውጭ አስወግድ' : 'Export'}</Button>
               </div>
             </div>
           </div>
@@ -220,7 +179,7 @@ const AdminOrders = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Orders</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ጠቅላላ ትእዛዞች' : 'Total Orders'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{orders.length}</p>
                 </div>
                 <Icon name="ShoppingCart" size={24} className="text-blue-600 dark:text-blue-400" />
@@ -229,7 +188,7 @@ const AdminOrders = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Pending Orders</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'በመጠባበቅ ላይ' : 'Pending Orders'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{getPendingOrders()}</p>
                 </div>
                 <Icon name="Clock" size={24} className="text-yellow-600 dark:text-yellow-400" />
@@ -238,7 +197,7 @@ const AdminOrders = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Delivered</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ተላከ' : 'Delivered'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
                     {orders.filter(o => o.status === 'delivered').length}
                   </p>
@@ -249,7 +208,7 @@ const AdminOrders = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Revenue</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ጠቅላላ ገቢ' : 'Total Revenue'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">ETB {getTotalRevenue().toLocaleString()}</p>
                 </div>
                 <Icon name="DollarSign" size={24} className="text-emerald-600 dark:text-emerald-400" />
@@ -265,7 +224,7 @@ const AdminOrders = () => {
                   <Icon name="Search" size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search orders by ID, buyer, or farmer..."
+                    placeholder={language === 'am' ? 'ትእዛዝ በመለያ፣ ገዢ ወይም ገበሬ ፈልግ...' : 'Search orders by ID, buyer, or farmer...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
@@ -278,22 +237,22 @@ const AdminOrders = () => {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
                 >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="shipped">Shipped</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="all">{language === 'am' ? 'ሁሉም ሁኔታ' : 'All Status'}</option>
+                  <option value="pending">{language === 'am' ? 'በመጠባበቅ ላይ' : 'Pending'}</option>
+                  <option value="confirmed">{language === 'am' ? 'ተረጋገጠ' : 'Confirmed'}</option>
+                  <option value="shipped">{language === 'am' ? 'ተላከ' : 'Shipped'}</option>
+                  <option value="delivered">{language === 'am' ? 'ተረከበ' : 'Delivered'}</option>
+                  <option value="cancelled">{language === 'am' ? 'ተሰረዘ' : 'Cancelled'}</option>
                 </select>
                 <select
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
                   className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
                 >
-                  <option value="all">All Time</option>
-                  <option value="today">Today</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
+                  <option value="all">{language === 'am' ? 'ሁሉም ጊዜ' : 'All Time'}</option>
+                  <option value="today">{language === 'am' ? 'ዛሬ' : 'Today'}</option>
+                  <option value="week">{language === 'am' ? 'ይህ ሳምንት' : 'This Week'}</option>
+                  <option value="month">{language === 'am' ? 'ይህ ወር' : 'This Month'}</option>
                 </select>
               </div>
             </div>
@@ -317,7 +276,7 @@ const AdminOrders = () => {
             ) : filteredOrders.length === 0 ? (
               <Card className="p-12 text-center">
                 <Icon name="ShoppingCart" size={48} className="mx-auto mb-4 text-slate-400" />
-                <p className="text-slate-600 dark:text-slate-400">No orders found</p>
+                <p className="text-slate-600 dark:text-slate-400">{language === 'am' ? 'ምንም ትእዛዝ አልተገኘም' : 'No orders found'}</p>
               </Card>
             ) : (
               filteredOrders.map((order) => (
@@ -367,37 +326,7 @@ const AdminOrders = () => {
                       <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
                         <span>Created: {new Date(order.createdAt).toLocaleDateString()}</span>
                         <div className="flex space-x-2">
-                          {order.status === 'pending' && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleOrderAction(order.id, 'confirm')}
-                              iconName="CheckCircle"
-                            >
-                              Confirm
-                            </Button>
-                          )}
-                          {order.status === 'confirmed' && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleOrderAction(order.id, 'ship')}
-                              iconName="Truck"
-                            >
-                              Ship
-                            </Button>
-                          )}
-                          {order.status === 'shipped' && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleOrderAction(order.id, 'deliver')}
-                              iconName="CheckCircle"
-                            >
-                              Mark Delivered
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="sm" iconName="Eye">View Details</Button>
+                          <Button variant="ghost" size="sm" iconName="Eye" onClick={() => setViewing(order)}>View Details</Button>
                           <Button variant="ghost" size="sm" iconName="MoreHorizontal" />
                         </div>
                       </div>
@@ -407,6 +336,18 @@ const AdminOrders = () => {
               ))
             )}
           </div>
+          {/* View Details Modal */}
+          {viewing && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <Card className="w-full max-w-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Order Details</h3>
+                  <Button variant="ghost" size="sm" iconName="X" onClick={() => setViewing(null)} />
+                </div>
+                <OrderDetails orderId={viewing.id} onClose={() => setViewing(null)} />
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </AuthenticatedLayout>
@@ -414,3 +355,97 @@ const AdminOrders = () => {
 };
 
 export default AdminOrders;
+
+// Lightweight details component fetching admin details endpoint
+const OrderDetails = ({ orderId }) => {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    const run = async () => {
+      setLoading(true);
+      try {
+        const idNum = Number(String(orderId).replace(/^ORD-/, ''));
+        const res = await apiClient.get(`/orders/admin/${idNum}`);
+        setData(res.data);
+      } catch (e) {
+        setError('Failed to load order details');
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [orderId]);
+
+  if (loading) return <div className="text-slate-500">Loading...</div>;
+  if (error) return <div className="text-red-500">{error}</div>;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <div className="text-slate-500">Order ID</div>
+          <div className="font-medium">ORD-{data.id}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Status</div>
+          <div className="font-medium capitalize">{data.status}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Created</div>
+          <div className="font-medium">{new Date(data.created_at).toLocaleString()}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Updated</div>
+          <div className="font-medium">{new Date(data.updated_at).toLocaleString()}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <div className="text-slate-500">Buyer</div>
+          <div className="font-medium">{data.buyer?.name || '—'}</div>
+          <div className="text-slate-500">{data.buyer?.email || ''}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Farmer</div>
+          <div className="font-medium">{data.farmer?.name || '—'}</div>
+          <div className="text-slate-500">{data.farmer?.email || ''}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <div className="text-slate-500">Total</div>
+          <div className="font-medium">{data.currency} {Number(data.total || 0).toLocaleString()}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Payment Method</div>
+          <div className="font-medium">{data.payment_method || '—'}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Delivery Address</div>
+          <div className="font-medium">{data.delivery_address || '—'}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Notes</div>
+          <div className="font-medium">{data.delivery_notes || '—'}</div>
+        </div>
+      </div>
+      <div>
+        <div className="text-slate-500 mb-2">Items</div>
+        <div className="divide-y divide-slate-200 dark:divide-slate-700">
+          {data.items?.map((it, i) => (
+            <div key={i} className="py-2 flex items-center justify-between">
+              <div>
+                <div className="font-medium">{it.name}</div>
+                <div className="text-slate-500">{it.quantity} {it.unit}</div>
+              </div>
+              <div className="text-slate-700">ETB {Number(it.price_per_unit || 0).toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};

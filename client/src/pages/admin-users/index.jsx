@@ -4,9 +4,12 @@ import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
+import { userService } from '../../services/apiService';
+import { useLanguage } from '../../hooks/useLanguage.jsx';
 
 const AdminUsers = () => {
   const { user, isAuthenticated } = useAuth();
+  const { language } = useLanguage();
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -14,49 +17,7 @@ const AdminUsers = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
-
-  // Mock user data
-  const mockUsers = [
-    {
-      id: 1,
-      name: 'Alemayehu Kebede',
-      email: 'alemayehu@example.com',
-      role: 'farmer',
-      status: 'active',
-      verified: true,
-      joinDate: '2024-01-15',
-      lastActive: '2024-01-20',
-      listings: 12,
-      orders: 45,
-      avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg'
-    },
-    {
-      id: 2,
-      name: 'Meron Tadesse',
-      email: 'meron@example.com',
-      role: 'buyer',
-      status: 'active',
-      verified: true,
-      joinDate: '2024-01-10',
-      lastActive: '2024-01-20',
-      listings: 0,
-      orders: 23,
-      avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg'
-    },
-    {
-      id: 3,
-      name: 'Getachew Molla',
-      email: 'getachew@example.com',
-      role: 'farmer',
-      status: 'pending',
-      verified: false,
-      joinDate: '2024-01-18',
-      lastActive: '2024-01-19',
-      listings: 3,
-      orders: 8,
-      avatar: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg'
-    }
-  ];
+  const [viewing, setViewing] = useState(null);
 
   useEffect(() => {
     loadUsers();
@@ -65,11 +26,19 @@ const AdminUsers = () => {
   const loadUsers = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setUsers(mockUsers);
-      setFilteredUsers(mockUsers);
+      const { users: apiUsers = [] } = await userService.getAllUsers?.() || {};
+      const mapped = apiUsers.map(u => ({
+        ...u,
+        status: 'active',
+        verified: false,
+        avatar: u.avatar || '/public/assets/images/no_image.png'
+      }));
+      setUsers(mapped);
+      setFilteredUsers(mapped);
     } catch (error) {
       console.error('Failed to load users:', error);
+      setUsers([]);
+      setFilteredUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -126,14 +95,13 @@ const AdminUsers = () => {
           <div className="px-4 mx-auto max-w-7xl lg:px-6 py-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">User Management</h1>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{language === 'am' ? 'የተጠቃሚ አስተዳደር' : 'User Management'}</h1>
                 <p className="mt-2 text-slate-600 dark:text-slate-400">
-                  Manage users, roles, and permissions across the platform
+                  {language === 'am' ? 'ተጠቃሚዎችን እና ሚናዎችን ያቀናብሩ' : 'Manage users, roles, and permissions across the platform'}
                 </p>
               </div>
               <div className="flex items-center space-x-4">
-                <Button variant="outline" size="sm" iconName="Download">Export</Button>
-                <Button variant="primary" size="sm" iconName="UserPlus">Add User</Button>
+                <Button variant="outline" size="sm" iconName="Download">{language === 'am' ? 'ወደ ውጭ አስወግድ' : 'Export'}</Button>
               </div>
             </div>
           </div>
@@ -145,7 +113,7 @@ const AdminUsers = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Users</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ጠቅላላ ተጠቃሚዎች' : 'Total Users'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{users.length}</p>
                 </div>
                 <Icon name="Users" size={24} className="text-blue-600 dark:text-blue-400" />
@@ -154,7 +122,7 @@ const AdminUsers = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Active Users</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ንቁ ተጠቃሚዎች' : 'Active Users'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
                     {users.filter(u => u.status === 'active').length}
                   </p>
@@ -165,7 +133,7 @@ const AdminUsers = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Farmers</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ገበሬዎች' : 'Farmers'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
                     {users.filter(u => u.role === 'farmer').length}
                   </p>
@@ -176,7 +144,7 @@ const AdminUsers = () => {
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Buyers</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'am' ? 'ገዢዎች' : 'Buyers'}</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
                     {users.filter(u => u.role === 'buyer').length}
                   </p>
@@ -192,20 +160,18 @@ const AdminUsers = () => {
               <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                 <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{language === 'am' ? 'ተጠቃሚ' : 'User'}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      User
+                      {language === 'am' ? 'ሚና' : 'Role'}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Role
+                      {language === 'am' ? 'ሁኔታ' : 'Status'}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Status
+                      {language === 'am' ? 'እንቅስቃሴ' : 'Activity'}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Activity
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Actions
+                      {language === 'am' ? 'እርምጃዎች' : 'Actions'}
                     </th>
                   </tr>
                 </thead>
@@ -217,11 +183,11 @@ const AdminUsers = () => {
                         <p className="text-slate-600 dark:text-slate-400">Loading users...</p>
                       </td>
                     </tr>
-                  ) : filteredUsers.length === 0 ? (
+                  ) : users.length === 0 ? (
                     <tr>
                       <td colSpan="5" className="px-6 py-12 text-center">
                         <Icon name="Users" size={48} className="mx-auto mb-4 text-slate-400" />
-                        <p className="text-slate-600 dark:text-slate-400">No users found</p>
+                        <p className="text-slate-600 dark:text-slate-400">{language === 'am' ? 'ምንም ተጠቃሚ አልተገኘም' : 'No users found'}</p>
                       </td>
                     </tr>
                   ) : (
@@ -259,8 +225,7 @@ const AdminUsers = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex space-x-2">
-                            <Button variant="ghost" size="sm" iconName="Eye">View</Button>
-                            <Button variant="ghost" size="sm" iconName="Edit">Edit</Button>
+                            <Button variant="ghost" size="sm" iconName="Eye" onClick={() => setViewing(user)}>View</Button>
                             <Button variant="ghost" size="sm" iconName="MoreHorizontal" />
                           </div>
                         </td>
@@ -272,6 +237,54 @@ const AdminUsers = () => {
             </div>
           </Card>
         </div>
+        {/* View User Modal */}
+        {viewing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <Card className="w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{language === 'am' ? 'የተጠቃሚ ዝርዝር' : 'User Details'}</h3>
+                <Button variant="ghost" size="sm" iconName="X" onClick={() => setViewing(null)} />
+              </div>
+              <div className="flex items-center space-x-3 mb-4">
+                <img className="h-12 w-12 rounded-full object-cover" src={viewing.avatar} alt={viewing.name} />
+                <div>
+                  <div className="font-semibold">{viewing.name}</div>
+                  <div className="text-slate-500 text-sm">{viewing.email}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-slate-500">{language === 'am' ? 'ሚና' : 'Role'}</div>
+                  <div className="font-medium capitalize">{viewing.role}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">{language === 'am' ? 'ሁኔታ' : 'Status'}</div>
+                  <div className="font-medium capitalize">{viewing.status}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">{language === 'am' ? 'ተመዝግቧል' : 'Joined'}</div>
+                  <div className="font-medium">{new Date(viewing.joinDate).toLocaleDateString()}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">{language === 'am' ? 'መጨረሻ ንቁ' : 'Last Active'}</div>
+                  <div className="font-medium">{new Date(viewing.lastActive).toLocaleDateString()}</div>
+                </div>
+                {viewing.role === 'farmer' && (
+                  <div>
+                    <div className="text-slate-500">{language === 'am' ? 'ዝርዝሮች' : 'Listings'}</div>
+                    <div className="font-medium">{viewing.listings}</div>
+                  </div>
+                )}
+                {viewing.role === 'buyer' && (
+                  <div>
+                    <div className="text-slate-500">{language === 'am' ? 'ትእዛዞች' : 'Orders'}</div>
+                    <div className="font-medium">{viewing.orders}</div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     </AuthenticatedLayout>
   );

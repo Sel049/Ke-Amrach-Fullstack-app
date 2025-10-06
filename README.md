@@ -1,10 +1,34 @@
 # 🌾 Ke geberew - Ethiopian Agricultural Marketplace
 
+## ⚡ Quick Start
+
+```bash
+# 1) Install dependencies
+cd client && npm install && cd ../server && npm install
+
+# 2) Configure env files
+cp ../client/env.example ../client/.env
+cp ../server/env.example ../server/.env
+
+# 3) Start backend (terminal A)
+cd ../server && npm run dev
+
+# 4) Start frontend (terminal B)
+cd ../client && npm run dev
+```
+
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:5000/api
+
+More detailed guides:
+- Client setup: see `client/README.md`
+- Server setup: see `server/README.md`
+
 A comprehensive digital platform connecting Ethiopian farmers directly with buyers, eliminating intermediaries and ensuring fair prices for agricultural products. Built with modern web technologies and designed specifically for the Ethiopian agricultural ecosystem.
 
 ## 🎯 Project Overview
 
-Ke geberew is a full-stack e-commerce solution that empowers Ethiopian farmers to sell their produce directly to buyers while providing buyers with access to fresh, locally-sourced agricultural products. The platform features role-based access control, secure authentication, and a user-friendly interface available in both English and Amharic.
+Ke Amrach is a full-stack e-commerce solution that empowers Ethiopian farmers to sell their produce directly to buyers while providing buyers with access to fresh, locally-sourced agricultural products. The platform features role-based access control, secure authentication, and a user-friendly interface available in both English and Amharic.
 
 ## ✨ Key Features
 
@@ -72,7 +96,7 @@ Ke geberew is a full-stack e-commerce solution that empowers Ethiopian farmers t
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/ethio-farmers-shop.git
+   git clone https://github.com/Sel049/Ke-Amrach-Fullstack-app.git
    cd ethio-farmers-shop
    ```
 
@@ -93,7 +117,7 @@ Ke geberew is a full-stack e-commerce solution that empowers Ethiopian farmers t
 3. **Database Setup**
    ```bash
    # Start MySQL service (XAMPP)
-   # Create database named 'ke_geberew'
+   # Create database named 'ke_amrach'
    # Import the schema
    mysql -u root -p ke_geberew < server/src/sql/schema.sql
    ```
@@ -120,13 +144,13 @@ Ke geberew is a full-stack e-commerce solution that empowers Ethiopian farmers t
    ```
 
 6. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:5000
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:5000/api
 
 ## 📁 Project Structure
 
 ```
-ethio-farmers-shop/
+KE_AMRACH/
 ├── client/                 # React frontend application
 │   ├── src/
 │   │   ├── components/     # Reusable UI components
@@ -236,38 +260,12 @@ ethio-farmers-shop/
 - Set up environment variables
 - Configure Firebase Admin SDK
 
-## 🤝 Contributing
-
-We welcome contributions to Ke geberew! Please follow these guidelines:
-
-1. **Fork the repository**
-2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
-3. **Commit your changes** (`git commit -m 'Add amazing feature'`)
-4. **Push to the branch** (`git push origin feature/amazing-feature`)
-5. **Open a Pull Request**
-
 ### **Development Guidelines**
 - Follow the existing code style and conventions
 - Write clear commit messages
 - Add comments for complex logic
 - Test your changes thoroughly
 - Update documentation as needed
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Ethiopian Farmers**: For their dedication and hard work
-- **Open Source Community**: For the amazing tools and libraries
-- **Contributors**: Everyone who has helped build this platform
-
-## 📞 Support
-
-For support, email support@kegeberew.et or create an issue in the repository.
-
----
 
 **Built with ❤️ for Ethiopian Farmers and Agricultural Communities**
 

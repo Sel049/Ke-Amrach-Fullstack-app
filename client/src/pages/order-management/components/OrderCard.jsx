@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
 import Button from '../../../components/ui/Button';
+import { reviewService } from '../../../services/apiService';
 
 const OrderCard = ({ 
   order, 
@@ -11,11 +12,17 @@ const OrderCard = ({
   onContactBuyer,
   onShip,
   onComplete,
-  currentLanguage = 'en' 
+  currentLanguage = 'en',
+  userRole = 'buyer' // Add user role prop
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeclineReason, setShowDeclineReason] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState(null); // { listingId, name }
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   const statusConfig = {
     pending: {
@@ -91,7 +98,7 @@ const OrderCard = ({
     { value: 'other', label: currentLanguage === 'am' ? 'ሌላ' : 'Other' }
   ];
 
-  return (
+  return (<>
     <div className={`bg-card border rounded-lg shadow-warm transition-smooth hover:shadow-warm-md ${status?.borderColor}`}>
       {/* Order Header */}
       <div className="p-4 border-b border-border">
@@ -99,17 +106,17 @@ const OrderCard = ({
           <div className="flex items-start space-x-3">
             <div className="w-12 h-12 bg-muted rounded-full overflow-hidden flex-shrink-0">
               <Image
-                src={order?.buyer?.avatar}
-                alt={order?.buyer?.name}
+                src={userRole === 'farmer' ? order?.buyer?.avatar : order?.farmer?.avatar}
+                alt={userRole === 'farmer' ? order?.buyer?.name : order?.farmer?.name}
                 className="w-full h-full object-cover"
               />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2">
                 <h3 className="font-medium text-text-primary truncate">
-                  {order?.buyer?.name}
+                  {userRole === 'farmer' ? order?.buyer?.name : order?.farmer?.name}
                 </h3>
-                {order?.buyer?.verified && (
+                {(userRole === 'farmer' ? order?.buyer?.verified : order?.farmer?.verified) && (
                   <Icon name="BadgeCheck" size={16} className="text-primary flex-shrink-0" />
                 )}
               </div>
@@ -164,9 +171,20 @@ const OrderCard = ({
                     </p>
                   </div>
                 </div>
+                <div className="flex items-center space-x-2">
                 <p className="font-medium text-sm text-text-primary">
                   {formatCurrency(item?.total)}
                 </p>
+                  {userRole === 'buyer' && order?.status === 'completed' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setReviewTarget({ listingId: (item?.listingId || String(item?.id || '')).toString().replace(/^listing-/, '').replace(/^item-/, ''), name: item?.name }); setIsReviewOpen(true); }}
+                    >
+                      {currentLanguage === 'am' ? 'አስተያየት ይጨምሩ' : 'Review'}
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
             
@@ -190,25 +208,28 @@ const OrderCard = ({
           {/* Expanded Details */}
           {isExpanded && (
             <div className="pt-4 border-t border-border space-y-4">
-              {/* Buyer Information */}
+              {/* Person Information */}
               <div className="space-y-2">
                 <h4 className="font-medium text-text-primary">
-                  {currentLanguage === 'am' ? 'የገዢ መረጃ' : 'Buyer Information'}
+                  {userRole === 'farmer' 
+                    ? (currentLanguage === 'am' ? 'የገዢ መረጃ' : 'Buyer Information')
+                    : (currentLanguage === 'am' ? 'የአበባተር መረጃ' : 'Farmer Information')
+                  }
                 </h4>
                 <div className="bg-muted/50 rounded-lg p-3 space-y-2">
                   <div className="flex items-center space-x-2">
                     <Icon name="MapPin" size={14} className="text-text-secondary" />
                     <span className="text-sm text-text-secondary">
-                      {order?.buyer?.location}
+                      {userRole === 'farmer' ? order?.buyer?.location : order?.farmer?.location}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Icon name="Phone" size={14} className="text-text-secondary" />
                     <span className="text-sm text-text-secondary">
-                      {order?.buyer?.phone}
+                      {userRole === 'farmer' ? order?.buyer?.phone : order?.farmer?.phone}
                     </span>
                   </div>
-                  {order?.buyer?.businessType && (
+                  {userRole === 'farmer' && order?.buyer?.businessType && (
                     <div className="flex items-center space-x-2">
                       <Icon name="Building2" size={14} className="text-text-secondary" />
                       <span className="text-sm text-text-secondary">
@@ -261,6 +282,9 @@ const OrderCard = ({
       </div>
       {/* Action Buttons */}
       <div className="p-4 border-t border-border">
+        {/* Farmer Actions */}
+        {userRole === 'farmer' && (
+          <>
         {order?.status === 'pending' && (
           <div className="space-y-3">
             {!showDeclineReason ? (
@@ -383,8 +407,62 @@ const OrderCard = ({
               {currentLanguage === 'am' ? 'ዝርዝር' : 'Details'}
             </Button>
           </div>
+            )}
+          </>
         )}
 
+        {/* Buyer Actions */}
+        {userRole === 'buyer' && (
+          <>
+            {order?.status === 'pending' && (
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => onContactBuyer(order?.farmer?.phone)}
+                  className="flex-1"
+                  iconName="Phone"
+                  iconPosition="left"
+                >
+                  {currentLanguage === 'am' ? 'አበባተርን ይደውሉ' : 'Call Farmer'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => onViewDetails(order?.id)}
+                  className="flex-1"
+                  iconName="Eye"
+                  iconPosition="left"
+                >
+                  {currentLanguage === 'am' ? 'ዝርዝር' : 'Details'}
+                </Button>
+              </div>
+            )}
+
+            {(order?.status === 'confirmed' || order?.status === 'shipped') && (
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => onContactBuyer(order?.farmer?.phone)}
+                  className="flex-1"
+                  iconName="Phone"
+                  iconPosition="left"
+                >
+                  {currentLanguage === 'am' ? 'አበባተርን ይደውሉ' : 'Call Farmer'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => onViewDetails(order?.id)}
+                  className="flex-1"
+                  iconName="Eye"
+                  iconPosition="left"
+                >
+                  {currentLanguage === 'am' ? 'ዝርዝር' : 'Details'}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Common Actions for Completed/Cancelled */}
         {(order?.status === 'completed' || order?.status === 'cancelled') && (
           <Button
             variant="ghost"
@@ -398,7 +476,66 @@ const OrderCard = ({
         )}
       </div>
     </div>
-  );
+    {/* Review Modal */}
+    {isReviewOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div className="bg-white rounded-lg w-full max-w-md">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-text-primary">
+              {currentLanguage === 'am' ? 'ግምገማ አቀርብ' : 'Leave a Review'}
+            </h3>
+            <Button variant="ghost" size="sm" onClick={() => setIsReviewOpen(false)} iconName="X" />
+          </div>
+          <div className="p-4 space-y-4">
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">
+                {currentLanguage === 'am' ? 'ምርት' : 'Product'}
+              </label>
+              <div className="text-sm font-medium text-text-primary">{reviewTarget?.name}</div>
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">{currentLanguage === 'am' ? 'ደረጃ' : 'Rating'}</label>
+              <select value={reviewRating} onChange={(e) => setReviewRating(Number(e.target.value))} className="w-full px-3 py-2 border border-border rounded-lg bg-input">
+                {[5,4,3,2,1].map(r => (
+                  <option key={r} value={r}>{r} {currentLanguage === 'am' ? 'ኮከብ' : 'star'}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">{currentLanguage === 'am' ? 'አስተያየት (አማራጭ)' : 'Comment (optional)'}</label>
+              <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} rows={3} className="w-full px-3 py-2 border border-border rounded-lg bg-input" />
+            </div>
+          </div>
+          <div className="p-4 border-t border-border flex space-x-2">
+            <Button variant="outline" className="flex-1" onClick={() => setIsReviewOpen(false)}>
+              {currentLanguage === 'am' ? 'ሰርዝ' : 'Cancel'}
+            </Button>
+            <Button
+              variant="primary"
+              className="flex-1"
+              loading={isSubmittingReview}
+              onClick={async () => {
+                if (!reviewTarget?.listingId || !reviewRating) return;
+                try {
+                  setIsSubmittingReview(true);
+                  await reviewService.createReview({ listingId: reviewTarget.listingId, rating: reviewRating, comment: reviewComment });
+                  setIsReviewOpen(false);
+                  setReviewComment('');
+                } catch (err) {
+                  console.error('Failed to submit review', err);
+                  alert(currentLanguage === 'am' ? 'ግምገማ አልተሳካም።' : 'Failed to submit review.');
+                } finally {
+                  setIsSubmittingReview(false);
+                }
+              }}
+            >
+              {currentLanguage === 'am' ? 'አቀርብ' : 'Submit'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
 };
 
 export default OrderCard;

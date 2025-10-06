@@ -4,7 +4,7 @@
  * Run this script to add indexes that will significantly improve listings loading speed
  */
 
-import { pool } from './src/config/database.js';
+import { pool } from '../src/config/database.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

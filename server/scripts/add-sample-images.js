@@ -3,7 +3,7 @@
  * Add sample images to existing listings that don't have images
  */
 
-import { pool } from './src/config/database.js';
+import { pool } from '../src/config/database.js';
 
 async function addSampleImages() {
   try {

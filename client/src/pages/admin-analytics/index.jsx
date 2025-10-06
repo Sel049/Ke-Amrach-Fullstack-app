@@ -4,6 +4,7 @@ import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
+import { dashboardService } from '../../services/apiService.js';
 
 const AdminAnalytics = () => {
   const { user, isAuthenticated } = useAuth();
@@ -31,6 +32,17 @@ const AdminAnalytics = () => {
       chart: []
     }
   });
+
+  const [topFarmersData, setTopFarmersData] = useState([]);
+
+  // Format rating like reviews/profile header
+  const formatAverage = (value) => {
+    if (value === null || value === undefined) return null;
+    const n = Number(value);
+    if (Number.isNaN(n)) return null;
+    const fixed = Number(n.toFixed(1));
+    return (fixed % 1 === 0) ? String(Math.trunc(fixed)) : String(fixed);
+  };
 
   // Mock analytics data
   const mockAnalyticsData = {
@@ -111,8 +123,18 @@ const AdminAnalytics = () => {
   const loadAnalyticsData = async () => {
     setIsLoading(true);
     try {
+      // Load mock data for all sections
       await new Promise(resolve => setTimeout(resolve, 1000));
       setAnalyticsData(mockAnalyticsData);
+      
+      // Load real data only for top farmers
+      try {
+        const response = await dashboardService.getAdminAnalytics({ period: timeRange });
+        setTopFarmersData(response.topFarmers || []);
+      } catch (error) {
+        console.error('Failed to load top farmers data:', error);
+        setTopFarmersData([]);
+      }
     } catch (error) {
       console.error('Failed to load analytics data:', error);
     } finally {
@@ -327,25 +349,34 @@ const AdminAnalytics = () => {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Top Performing Farmers</h3>
                 <Button variant="ghost" size="sm" iconName="MoreHorizontal" />
               </div>
-              <div className="space-y-4">
-                {topFarmers.map((farmer, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{index + 1}</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">{farmer.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{farmer.orders} orders • {farmer.rating}★</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">ETB {farmer.revenue.toLocaleString()}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Revenue</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+               <div className="space-y-4">
+                 {topFarmersData.length > 0 ? (
+                   topFarmersData.map((farmer, index) => (
+                     <div key={index} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                       <div className="flex items-center space-x-3">
+                         <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                           <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{index + 1}</span>
+                         </div>
+                         <div>
+                           <p className="text-sm font-medium text-slate-900 dark:text-white">{farmer.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {farmer.orders} orders • {formatAverage(farmer.rating) || 'N/A'}★
+                          </p>
+                         </div>
+                       </div>
+                       <div className="text-right">
+                         <p className="text-sm font-medium text-slate-900 dark:text-white">ETB {(farmer.revenue || 0).toLocaleString()}</p>
+                         <p className="text-xs text-slate-500 dark:text-slate-400">Revenue</p>
+                       </div>
+                     </div>
+                   ))
+                 ) : (
+                   <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                     <Icon name="Users" size={48} className="mx-auto mb-2 opacity-50" />
+                     <p>No farmer data available</p>
+                   </div>
+                 )}
+               </div>
             </Card>
 
             {/* Recent Activity */}

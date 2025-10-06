@@ -30,11 +30,28 @@ const CartPage = () => {
                 <div className="flex-1">
                   <div className="font-medium text-text-primary">{language === 'am' ? item.nameAm || item.name : item.name}</div>
                   <div className="text-sm text-text-secondary">ETB {item.pricePerKg} / kg</div>
+                  {item.availableQuantity && (
+                    <div className="text-xs text-gray-500">
+                      {language === 'am' ? 'የሚገኝ' : 'Available'}: {item.availableQuantity} kg
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => updateQuantity(item.id, item.quantity - 1)} iconName="Minus" />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => updateQuantity(item.id, item.quantity - 1)} 
+                    iconName="Minus"
+                    disabled={item.quantity <= 1}
+                  />
                   <span className="w-8 text-center">{item.quantity}</span>
-                  <Button variant="outline" size="sm" onClick={() => updateQuantity(item.id, item.quantity + 1)} iconName="Plus" />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => updateQuantity(item.id, item.quantity + 1)} 
+                    iconName="Plus"
+                    disabled={item.quantity >= (item.availableQuantity || 999)}
+                  />
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)} iconName="Trash2" className="text-red-500 hover:text-red-700" />
               </div>

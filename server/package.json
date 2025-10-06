@@ -9,6 +9,7 @@
     "dev": "node --watch src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "setup-db": "node setup-database.js",
+    "db:bootstrap": "node scripts/apply-schema-and-admin.js",
     "lint": "echo \"No linter configured\"",
     "lint:fix": "echo \"No linter configured\""
   },

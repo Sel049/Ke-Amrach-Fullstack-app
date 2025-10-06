@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { userService } from '../../services/apiService';
+import { userService, verificationService } from '../../services/apiService';
 import { useNavigate } from 'react-router-dom';
 import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import ProfileHeader from './components/ProfileHeader';
@@ -23,6 +23,19 @@ const UserProfileManagement = () => {
   const [activeTab, setActiveTab] = useState('account');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  const formatToAmPm = (timeStr) => {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    const [hStr, mStr = '00'] = timeStr.split(':');
+    let h = parseInt(hStr, 10);
+    if (Number.isNaN(h)) return null;
+    const m = mStr.padStart(2, '0');
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${m} ${suffix}`;
+  };
 
 
   // Load language preference from localStorage
@@ -38,14 +51,150 @@ const UserProfileManagement = () => {
     const fetchUser = async () => {
       try {
         const data = await userService.getMe();
-        setUser(data);
-        setUserRole(data.role || 'farmer');
+        const role = data.role || 'farmer';
+        // Compute profile completion (not order-based)
+        const computeProfileCompletion = (userRole, u, verificationFlags = {}) => {
+          if (!u) return 0;
+          const common = ['fullName', 'phone', 'region', 'woreda', 'avatarUrl'];
+          const buyerFields = ['businessType', 'preferredSuppliers', 'purchaseVolume', 'deliveryPreference'];
+          const farmerFields = ['farmName', 'farmSize', 'primaryCrops', 'experienceYears'];
+          let fields = userRole === 'buyer' ? [...common, ...buyerFields] : [...common, ...farmerFields];
+
+          // Include verification requirements for buyers based on business type
+          if (userRole === 'buyer') {
+            const bt = String(u.businessType || '').toLowerCase();
+            const isIndividual = bt === 'individual';
+            const requiresBusinessDocs = bt && bt !== 'individual';
+            if (isIndividual) {
+              fields = [...fields, '__verified_national_id__'];
+            } else if (requiresBusinessDocs) {
+              fields = [...fields, '__verified_business_license__', '__verified_tax_certificate__'];
+            }
+          } else if (userRole === 'farmer') {
+            // Farmers require National ID and Land Use Certificate
+            fields = [...fields, '__verified_national_id__', '__verified_land_certificate__'];
+          }
+
+          // Only count fields that exist on user or synthetic verification placeholders
+          const available = fields.filter((k) => k.startsWith('__verified_') || Object.prototype.hasOwnProperty.call(u, k));
+          const checkFilled = (v) => {
+            if (v === null || v === undefined) return false;
+            if (Array.isArray(v)) return v.length > 0;
+            if (typeof v === 'number') return v > 0; // treat 0 as not filled for numeric profile entries
+            return String(v).trim() !== '';
+          };
+          const filled = available.filter((k) => {
+            if (k === '__verified_national_id__') return !!verificationFlags.nationalIdVerified;
+            if (k === '__verified_business_license__') return !!verificationFlags.businessLicenseVerified;
+            if (k === '__verified_tax_certificate__') return !!verificationFlags.taxCertificateVerified;
+            if (k === '__verified_land_certificate__') return !!verificationFlags.landCertificateVerified;
+            return checkFilled(u[k]);
+          });
+          const denom = available.length || fields.length;
+          return denom ? Math.round((filled.length / denom) * 100) : 0;
+        };
+
+        // Build verification flags for buyers and farmers
+        let verificationFlags = {};
+        try {
+          try {
+            const docsRes = await verificationService.getDocuments();
+            const docs = Array.isArray(docsRes?.documents) ? docsRes.documents : (Array.isArray(docsRes) ? docsRes : []);
+            const norm = (s) => String(s || '').toLowerCase().replace(/[-_]/g, '');
+            const isVerifiedType = (t) => docs.some(d => norm(d.type || d.document_type) === norm(t) && String(d.status || '').toLowerCase() === 'verified');
+            verificationFlags = {
+              nationalIdVerified: isVerifiedType('national-id'),
+              businessLicenseVerified: isVerifiedType('business-license'),
+              taxCertificateVerified: isVerifiedType('tax-certificate'),
+              landCertificateVerified: isVerifiedType('land-certificate')
+            };
+          } catch (e) {
+            // Ignore verification errors for completion computation
+          }
+        } catch (_) {}
+
+        const completionRate = computeProfileCompletion(role, data, verificationFlags);
+        setUser({ ...data, completionRate });
+        setUserRole(role);
       } catch (e) {
         // ignore; layout will protect route elsewhere
       }
     };
     fetchUser();
   }, []);
+
+  // Load role-based stats from real data
+  useEffect(() => {
+    const loadStats = async () => {
+      if (!userRole) return;
+      try {
+        setStatsLoading(true);
+        if (userRole === 'buyer') {
+          const res = await (await import('../../services/apiService')).orderService.getBuyerOrders({ limit: 100 });
+          const list = res?.orders || res || [];
+          const totalOrders = Array.isArray(list) ? list.length : 0;
+          setUser(prev => ({ ...(prev || {}), totalOrders }));
+        } else if (userRole === 'farmer') {
+          const api = await import('../../services/apiService');
+          const res = await api.orderService.getFarmerOrders({ limit: 100 });
+          const list = res?.orders || res || [];
+          const totalOrders = Array.isArray(list) ? list.length : 0;
+
+          // Fetch server-side farmer profile stats for reliable rating
+          let rating;
+          let responseTime;
+          try {
+            const statsRes = await api.default.get('/farmer-profile/profile/stats');
+            const stats = statsRes?.data?.stats || {};
+            if (typeof stats.avg_rating === 'number') {
+              rating = Number(stats.avg_rating).toFixed(1);
+            }
+          } catch (_) {}
+
+          // Fetch farmer profile to get available hours and fallback rating
+          try {
+            const profRes = await api.default.get('/farmer-profile/profile');
+            const prof = profRes?.data || {};
+            const start = prof.business_hours_start || prof.businessHoursStart;
+            const end = prof.business_hours_end || prof.businessHoursEnd;
+            const startFmt = formatToAmPm(start) || formatToAmPm('06:00');
+            const endFmt = formatToAmPm(end) || formatToAmPm('18:00');
+            responseTime = `${startFmt} - ${endFmt}`;
+            if (rating === undefined && typeof prof.avg_rating === 'number') {
+              rating = Number(prof.avg_rating).toFixed(1);
+            }
+          } catch (_) {}
+
+          // Fallback: derive rating from farmer reviews if still unavailable
+          if (rating === undefined || rating === null || rating === 'NaN') {
+            try {
+              const meId = (user || data)?.id;
+              if (meId) {
+                const revRes = await api.reviewService.getFarmerReviews(meId, { limit: 50 });
+                const farmerStats = revRes?.farmerStats || {};
+                let avg = farmerStats.avg_rating;
+                if (avg === undefined || avg === null) {
+                  const reviews = revRes?.reviews || [];
+                  const nums = reviews.map(r => Number(r?.rating)).filter(n => !Number.isNaN(n));
+                  if (nums.length) avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+                }
+                if (typeof avg === 'number' && !Number.isNaN(avg)) {
+                  rating = Number(avg).toFixed(1);
+                }
+              }
+            } catch (_) {}
+          }
+
+          setUser(prev => ({ ...(prev || {}), totalOrders, rating, responseTime }));
+        }
+      } catch (e) {
+        // silently ignore stats errors to avoid blocking profile
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    loadStats();
+  }, [userRole]);
 
   // Handle language change
   const handleLanguageChange = (newLanguage) => {
@@ -213,11 +362,11 @@ const UserProfileManagement = () => {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-green-800">
-                      {getLabel('Welcome to Ke geberew!', 'እንኳን ወደ ከገበረው በደህና መጡ!')}
+                      {getLabel('Welcome to Keamrach!', 'እንኳን ወደ Keamrach በደህና መጡ!')}
                   </h3>
                   <p className="mt-1 text-sm text-green-700">
                     {getLabel(
-                      'Complete your profile to get the most out of Ke geberew. This helps other users find and connect with you.',
+                      'Complete your profile to get the most out of Keamrach. This helps other users find and connect with you.',
                       'ከ ከገበረው የተሻለ ጥቅም ለማግኘት የመገለጫ መረጃዎን ያጠናቅቁ። ይህ ሌሎች ተጠቃሚዎች እንዲያገኙዎት እና እንዲገናኙዎት ይረዳል።'
                     )}
                   </p>

@@ -1,4 +1,4 @@
-const db = require('../config/database');
+import { pool } from '../config/database.js';
 
 class FraudDetection {
   constructor() {
@@ -163,17 +163,17 @@ class FraudDetection {
       const oneDayAgo = new Date(now.getTime() - 86400000);
 
       // Count recent transactions
-      const [minuteCount] = await db.execute(
+      const [minuteCount] = await pool.execute(
         'SELECT COUNT(*) as count FROM payments WHERE user_id = ? AND created_at > ? AND status = "completed"',
         [userId, oneMinuteAgo]
       );
 
-      const [hourCount] = await db.execute(
+      const [hourCount] = await pool.execute(
         'SELECT COUNT(*) as count FROM payments WHERE user_id = ? AND created_at > ? AND status = "completed"',
         [userId, oneHourAgo]
       );
 
-      const [dayCount] = await db.execute(
+      const [dayCount] = await pool.execute(
         'SELECT COUNT(*) as count FROM payments WHERE user_id = ? AND created_at > ? AND status = "completed"',
         [userId, oneDayAgo]
       );
@@ -260,7 +260,7 @@ class FraudDetection {
 
   async analyzePaymentMethod(paymentMethodId) {
     try {
-      const [rows] = await db.execute(
+      const [rows] = await pool.execute(
         'SELECT * FROM payment_methods WHERE id = ?',
         [paymentMethodId]
       );
@@ -315,7 +315,7 @@ class FraudDetection {
   async analyzeUserBehavior(userId) {
     try {
       // Get user's payment history
-      const [payments] = await db.execute(
+      const [payments] = await pool.execute(
         'SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
         [userId]
       );
@@ -337,7 +337,7 @@ class FraudDetection {
       }
 
       // Check for refunds
-      const [refunds] = await db.execute(
+      const [refunds] = await pool.execute(
         'SELECT COUNT(*) as count FROM payment_refunds pr JOIN payments p ON pr.payment_id = p.id WHERE p.user_id = ?',
         [userId]
       );
@@ -389,7 +389,7 @@ class FraudDetection {
   // Get fraud detection report
   async getFraudReport(userId, startDate, endDate) {
     try {
-      const [payments] = await db.execute(
+      const [payments] = await pool.execute(
         'SELECT * FROM payments WHERE user_id = ? AND created_at BETWEEN ? AND ? ORDER BY created_at DESC',
         [userId, startDate, endDate]
       );
@@ -442,4 +442,4 @@ class FraudDetection {
   }
 }
 
-module.exports = FraudDetection;
+export default FraudDetection;

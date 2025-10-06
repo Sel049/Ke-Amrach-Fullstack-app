@@ -17,10 +17,16 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   async (config) => {
     try {
-      // Check if Firebase is configured
+      // If a dev token is present, prefer and use it to avoid Firebase conflicts
+      const storedToken = localStorage.getItem('authToken');
+      if (storedToken && storedToken.startsWith('dev-token-')) {
+        config.headers.Authorization = `Bearer ${storedToken}`;
+        return config;
+      }
+
+      // Otherwise, try Firebase ID token when configured
       const firebaseApiKey = import.meta.env.VITE_FIREBASE_API_KEY;
       if (firebaseApiKey && firebaseApiKey !== 'placeholder_key') {
-        // Prefer Firebase ID token if available
         const { auth } = await import('../firebase');
         if (auth && auth.currentUser) {
           const idToken = await auth.currentUser.getIdToken();
@@ -142,6 +148,12 @@ export const userService = {
   }
 };
 
+// Admin User Service helpers
+userService.getAllUsers = async (params = {}) => {
+  const response = await apiClient.get('/users/admin/all', { params });
+  return response.data;
+};
+
 // Listings Service
 export const listingService = {
   // Get all active listings
@@ -203,6 +215,18 @@ export const listingService = {
   }
 };
 
+// Admin Listings helper
+listingService.getAllListings = async (params = {}) => {
+  const response = await apiClient.get('/listings/admin/all', { params });
+  return response.data;
+};
+
+// Admin: Update listing status
+listingService.adminUpdateListingStatus = async (id, status) => {
+  const response = await apiClient.patch(`/listings/admin/${id}/status`, { status });
+  return response.data;
+};
+
 // Orders Service
 export const orderService = {
   // Create new order
@@ -246,6 +270,12 @@ export const orderService = {
     const response = await apiClient.get('/orders/stats', { params });
     return response.data;
   }
+};
+
+// Admin Orders helper
+orderService.getAllOrders = async (params = {}) => {
+  const response = await apiClient.get('/orders/admin/all', { params });
+  return response.data;
 };
 
 // Favorites Service
@@ -392,6 +422,53 @@ export const marketTrendsService = {
   }
 };
 
+// Verification Service
+export const verificationService = {
+  // Get user verification documents
+  getDocuments: async () => {
+    const response = await apiClient.get('/verification/documents');
+    return response.data;
+  },
+
+  // Upload verification document
+  uploadDocument: async (documentType, documentName, file) => {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('document_type', documentType);
+    formData.append('document_name', documentName);
+    
+    const response = await apiClient.post('/verification/documents', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 30000, // 30 second timeout for file uploads
+    });
+    return response.data;
+  },
+
+  // Delete verification document
+  deleteDocument: async (documentId) => {
+    const response = await apiClient.delete(`/verification/documents/${documentId}`);
+    return response.data;
+  },
+
+  // Admin functions
+  // Get all verification documents (admin only)
+  getAllDocuments: async (params = {}) => {
+    const response = await apiClient.get('/verification/admin/documents', { params });
+    return response.data;
+  },
+
+  // Update document status (admin only)
+  updateDocumentStatus: async (documentId, status, rejectionReason = null) => {
+    const response = await apiClient.put(`/verification/documents/${documentId}/status`, {
+      status,
+      rejection_reason: rejectionReason
+    });
+    return response.data;
+  }
+};
+
 // Dashboard Service
 export const dashboardService = {
   // Get buyer dashboard
@@ -415,6 +492,12 @@ export const dashboardService = {
   // Get analytics data
   getAnalyticsData: async (params = {}) => {
     const response = await apiClient.get('/dashboard/analytics', { params });
+    return response.data;
+  },
+
+  // Get admin analytics data
+  getAdminAnalytics: async (params = {}) => {
+    const response = await apiClient.get('/dashboard/admin/analytics', { params });
     return response.data;
   }
 };

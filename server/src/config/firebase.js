@@ -53,8 +53,21 @@ export function initializeFirebaseStrict() {
       return admin;
     }
 
-    // Require service account credentials (no bypass)
+    // If missing credentials
     if (!hasAll) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn("⚠️  Firebase admin credentials are missing. Running in development without Firebase Admin.");
+        // Provide a safe stub so imports don't crash; auth middleware already supports dev mode
+        return {
+          auth() {
+            return {
+              async verifyIdToken() {
+                throw new Error('Firebase Admin not configured');
+              },
+            };
+          },
+        };
+      }
       exitWithError(
         "Missing Firebase admin credentials. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in your environment."
       );
@@ -84,7 +97,18 @@ export function initializeFirebaseStrict() {
 
     return admin;
   } catch (err) {
-    // Make sure we fail fast and clearly
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn("⚠️  Firebase initialization failed in development:", err && err.message ? err.message : err);
+      return {
+        auth() {
+          return {
+            async verifyIdToken() {
+              throw new Error('Firebase Admin not configured');
+            },
+          };
+        },
+      };
+    }
     console.error("❌ Firebase initialization failed:", err && err.message ? err.message : err);
     process.exitCode = 1;
     throw err;

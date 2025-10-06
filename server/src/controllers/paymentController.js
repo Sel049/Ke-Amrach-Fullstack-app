@@ -1,7 +1,7 @@
-const db = require('../config/database');
-const PaymentProcessor = require('../services/paymentProcessor');
-const FraudDetection = require('../services/fraudDetection');
-const PaymentAnalytics = require('../services/paymentAnalytics');
+import { pool } from '../config/database.js';
+import PaymentProcessor from '../services/paymentProcessor.js';
+import FraudDetection from '../services/fraudDetection.js';
+import PaymentAnalytics from '../services/paymentAnalytics.js';
 
 // Initialize services
 const paymentProcessor = new PaymentProcessor();
@@ -29,7 +29,7 @@ const getUserPaymentMethods = async (req, res) => {
       ORDER BY pm.is_default DESC, pm.created_at DESC
     `;
     
-    const [paymentMethods] = await db.execute(query, [userId]);
+    const [paymentMethods] = await pool.execute(query, [userId]);
     
     // Add bank/provider information
     const enhancedMethods = paymentMethods.map(method => {
@@ -98,7 +98,7 @@ const addPaymentMethod = async (req, res) => {
     
     // If setting as default, unset other default methods
     if (isDefault) {
-      await db.execute(
+      await pool.execute(
         'UPDATE payment_methods SET is_default = 0 WHERE user_id = ?',
         [userId]
       );
@@ -109,7 +109,7 @@ const addPaymentMethod = async (req, res) => {
       VALUES (?, ?, ?, ?, 0, 1, NOW())
     `;
     
-    const [result] = await db.execute(query, [
+    const [result] = await pool.execute(query, [
       userId,
       type,
       JSON.stringify(details),
@@ -158,7 +158,7 @@ const verifyPaymentMethod = async (req, res) => {
       WHERE id = ? AND user_id = ?
     `;
     
-    const [result] = await db.execute(query, [paymentMethodId, req.user.id]);
+    const [result] = await pool.execute(query, [paymentMethodId, req.user.id]);
     
     if (result.affectedRows === 0) {
       return res.status(404).json({
@@ -191,7 +191,7 @@ const removePaymentMethod = async (req, res) => {
       WHERE id = ? AND user_id = ?
     `;
     
-    const [result] = await db.execute(query, [paymentMethodId, req.user.id]);
+    const [result] = await pool.execute(query, [paymentMethodId, req.user.id]);
     
     if (result.affectedRows === 0) {
       return res.status(404).json({
@@ -236,7 +236,7 @@ const processPayment = async (req, res) => {
     }
     
     // Get payment method details
-    const [paymentMethods] = await db.execute(
+    const [paymentMethods] = await pool.execute(
       'SELECT * FROM payment_methods WHERE id = ? AND user_id = ? AND is_verified = 1 AND is_active = 1',
       [paymentMethodId, userId]
     );
@@ -276,7 +276,7 @@ const processPayment = async (req, res) => {
     
     // Update order status if orderId is provided
     if (orderId && result.data.success) {
-      await db.execute(
+      await pool.execute(
         'UPDATE orders SET status = ?, payment_id = ? WHERE id = ?',
         ['confirmed', result.data.paymentId, orderId]
       );
@@ -348,7 +348,7 @@ const getPaymentHistory = async (req, res) => {
     query += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
     
-    const [payments] = await db.execute(query, params);
+    const [payments] = await pool.execute(query, params);
     
     // Get total count
     const countQuery = `
@@ -370,7 +370,7 @@ const getPaymentHistory = async (req, res) => {
       countParams.push(type);
     }
     
-    const [countResult] = await db.execute(countQuery, countParams);
+    const [countResult] = await pool.execute(countQuery, countParams);
     const total = countResult[0].total;
     
     res.json({
@@ -392,39 +392,7 @@ const getPaymentHistory = async (req, res) => {
   }
 };
 
-// Simulate payment processing
-const simulatePaymentProcessing = async (paymentMethod, amount, orderId) => {
-  // Simulate processing delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  const paymentId = `${paymentMethod.type.toUpperCase()}_${Date.now()}`;
-  const transactionId = `TXN_${Date.now()}`;
-  
-  // Simulate different success rates based on method
-  const successRates = {
-    bank: 0.95,
-    mobile: 0.90,
-    cash: 1.0,
-    card: 0.85
-  };
-  
-  const successRate = successRates[paymentMethod.type] || 0.8;
-  const isSuccess = Math.random() < successRate;
-  
-  if (!isSuccess) {
-    return {
-      success: false,
-      error: 'Payment processing failed. Please try again.'
-    };
-  }
-  
-  return {
-    success: true,
-    paymentId,
-    transactionId,
-    message: 'Payment processed successfully'
-  };
-};
+// (removed: legacy simulatePaymentProcessing helper; the route handler below handles simulation)
 
 // Get payment statistics
 const getPaymentStats = async (req, res) => {
@@ -442,7 +410,7 @@ const getPaymentStats = async (req, res) => {
       WHERE user_id = ?
     `;
     
-    const [stats] = await db.execute(query, [userId]);
+    const [stats] = await pool.execute(query, [userId]);
     
     res.json({
       success: true,
@@ -556,7 +524,7 @@ const processRefund = async (req, res) => {
     const userId = req.user.id;
     
     // Verify payment belongs to user
-    const [payments] = await db.execute(
+    const [payments] = await pool.execute(
       'SELECT * FROM payments WHERE payment_id = ? AND user_id = ?',
       [paymentId, userId]
     );
@@ -679,7 +647,7 @@ const simulatePaymentProcessing = async (req, res) => {
     const userId = req.user.id;
     
     // Get payment method
-    const [paymentMethods] = await db.execute(
+    const [paymentMethods] = await pool.execute(
       'SELECT * FROM payment_methods WHERE id = ? AND user_id = ?',
       [paymentMethodId, userId]
     );
@@ -719,7 +687,7 @@ const simulatePaymentProcessing = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   getUserPaymentMethods,
   addPaymentMethod,
   verifyPaymentMethod,

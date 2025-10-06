@@ -1,4 +1,4 @@
-const db = require('../config/database');
+import { pool } from '../config/database.js';
 
 class PaymentAnalytics {
   constructor() {
@@ -37,7 +37,7 @@ class PaymentAnalytics {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
       `;
 
-      await db.execute(query, [
+      await pool.execute(query, [
         paymentRecord.paymentId,
         paymentRecord.userId,
         paymentRecord.amount,
@@ -102,7 +102,7 @@ class PaymentAnalytics {
         card: paymentRecord.paymentMethod?.type === 'card' ? 1 : 0
       };
 
-      await db.execute(query, [
+      await pool.execute(query, [
         date, paymentRecord.amount, isSuccess, isFailure, processingFee,
         methodCounts.bank, methodCounts.mobile, methodCounts.cash, methodCounts.card,
         paymentRecord.amount, isSuccess, isFailure, processingFee,
@@ -133,7 +133,7 @@ class PaymentAnalytics {
       const isFailure = paymentRecord.success ? 0 : 1;
       const processingFee = paymentRecord.processingFee || 0;
 
-      await db.execute(query, [
+      await pool.execute(query, [
         date, hour, paymentRecord.amount, isSuccess, isFailure, processingFee,
         paymentRecord.amount, isSuccess, isFailure, processingFee
       ]);
@@ -361,7 +361,7 @@ class PaymentAnalytics {
   // Get active alerts
   async getActiveAlerts() {
     try {
-      const [rows] = await db.execute(`
+      const [rows] = await pool.execute(`
         SELECT * FROM payment_alerts 
         WHERE status = 'active' 
         ORDER BY created_at DESC
@@ -380,7 +380,7 @@ class PaymentAnalytics {
     try {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       
-      const [rows] = await db.execute(`
+      const [rows] = await pool.execute(`
         SELECT 
           COUNT(*) as total,
           SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed
@@ -471,7 +471,7 @@ class PaymentAnalytics {
           dateCondition = 'created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)';
       }
 
-      const [rows] = await db.execute(`
+      const [rows] = await pool.execute(`
         SELECT 
           DATE(created_at) as date,
           COUNT(*) as transactions,
@@ -493,7 +493,7 @@ class PaymentAnalytics {
   // Get bank performance metrics
   async getBankPerformance(startDate, endDate) {
     try {
-      const [rows] = await db.execute(`
+      const [rows] = await pool.execute(`
         SELECT 
           bank_code,
           COUNT(*) as transactions,
@@ -521,4 +521,4 @@ class PaymentAnalytics {
   }
 }
 
-module.exports = PaymentAnalytics;
+export default PaymentAnalytics;

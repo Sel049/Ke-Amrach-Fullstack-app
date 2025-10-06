@@ -75,10 +75,10 @@ const MarketTrendsDashboard = () => {
   return (
     <AuthenticatedLayout>
       <Helmet>
-        <title>{pageTitle} - Ke geberew Ethiopia</title>
+        <title>{pageTitle} - Keamrach Ethiopia</title>
         <meta name="description" content={pageDescription} />
         <meta name="keywords" content="Ethiopia, agriculture, market prices, farming, trends, teff, coffee, maize" />
-        <meta property="og:title" content={`${pageTitle} - Ke geberew Ethiopia`} />
+        <meta property="og:title" content={`${pageTitle} - Keamrach Ethiopia`} />
         <meta property="og:description" content={pageDescription} />
         <meta property="og:type" content="website" />
       </Helmet>

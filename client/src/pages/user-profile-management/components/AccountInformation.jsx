@@ -118,8 +118,8 @@ const AccountInformation = ({ userRole, currentLanguage, onProfileUpdated }) => 
   const handleSave = async () => {
     try {
       const payload = {
-        full_name: formData.fullName,
-        phone: formData.phone,
+        fullName: formData.fullName,
+        phoneNumber: formData.phone,
         email: formData.email,
         region: formData.region,
         woreda: formData.woreda,
@@ -132,8 +132,8 @@ const AccountInformation = ({ userRole, currentLanguage, onProfileUpdated }) => 
       // Update local auth context
       try { 
         updateUser && updateUser({
-          full_name: formData.fullName,
-          phone: formData.phone,
+          fullName: formData.fullName,
+          phoneNumber: formData.phone,
           email: formData.email,
           region: formData.region,
           woreda: formData.woreda,
@@ -144,8 +144,8 @@ const AccountInformation = ({ userRole, currentLanguage, onProfileUpdated }) => 
       // Update parent component
       try { 
         onProfileUpdated && onProfileUpdated({
-          full_name: formData.fullName,
-          phone: formData.phone,
+          fullName: formData.fullName,
+          phoneNumber: formData.phone,
           email: formData.email,
           region: formData.region,
           woreda: formData.woreda,
@@ -204,8 +204,8 @@ const AccountInformation = ({ userRole, currentLanguage, onProfileUpdated }) => 
               </h3>
               <p className="mt-1 text-sm text-blue-700">
                 {getLabel(
-                  'Please complete your profile information to get the most out of Ke geberew. This helps other users find and connect with you.',
-                  'ከ Ke geberew የተሻለ ጥቅም ለማግኘት የመገለጫ መረጃዎን ያጠናቅቁ። ይህ ሌሎች ተጠቃሚዎች እንዲያገኙዎት እና እንዲገናኙዎት ይረዳል።'
+                  'Please complete your profile information to get the most out of Keamrach. This helps other users find and connect with you.',
+                  'ከ Keamrach የተሻለ ጥቅም ለማግኘት የመገለጫ መረጃዎን ያጠናቅቁ። ይህ ሌሎች ተጠቃሚዎች እንዲያገኙዎት እና እንዲገናኙዎት ይረዳል።'
                 )}
               </p>
             </div>

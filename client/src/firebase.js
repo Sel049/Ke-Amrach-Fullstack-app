@@ -40,10 +40,25 @@ if (typeof window !== 'undefined' && auth) {
           const token = await user.getIdToken();
           localStorage.setItem('authToken', token);
           localStorage.setItem('isAuthenticated', 'true');
+          
+          // Trigger background sync to hydrate role/profile without page refresh
+          try {
+            const { authService, userService } = await import('./services/apiService.js');
+            await authService.syncUser().catch(() => {});
+            const me = await userService.getMe().catch(() => null);
+            if (me) {
+              localStorage.setItem('userData', JSON.stringify(me));
+              if (me.role) localStorage.setItem('userRole', me.role);
+            }
+          } catch (error) {
+            console.log('Background sync failed:', error);
+          }
         } catch (_) {}
       } else {
         localStorage.removeItem('authToken');
         localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('userData');
+        localStorage.removeItem('userRole');
       }
     });
   } catch (_) {}

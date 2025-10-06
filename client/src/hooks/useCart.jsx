@@ -46,23 +46,34 @@ export const CartProvider = ({ children }) => {
     setItems(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
-        return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + quantity } : i);
+        // If item already exists, just increase quantity by 1 (but respect availableQuantity limit)
+        const newQuantity = Math.min(existing.quantity + 1, existing.availableQuantity || 999);
+        return prev.map(i => i.id === item.id ? { ...i, quantity: newQuantity } : i);
       }
-      return [...prev, { ...item, quantity }];
+      // If new item, add with quantity 1
+      return [...prev, { ...item, quantity: 1 }];
     });
   };
 
   const updateQuantity = (id, quantity) => {
     setItems(prev => {
       if (quantity <= 0) return prev.filter(i => i.id !== id);
-      return prev.map(i => i.id === id ? { ...i, quantity } : i);
+      return prev.map(i => {
+        if (i.id === id) {
+          // Respect availableQuantity limit
+          const maxQuantity = i.availableQuantity || 999;
+          const newQuantity = Math.min(quantity, maxQuantity);
+          return { ...i, quantity: newQuantity };
+        }
+        return i;
+      });
     });
   };
 
   const removeItem = (id) => setItems(prev => prev.filter(i => i.id !== id));
   const clear = () => setItems([]);
 
-  const totalItems = useMemo(() => items.reduce((t, i) => t + (Number(i.quantity) || 0), 0), [items]);
+  const totalItems = useMemo(() => items.length, [items]); // Count number of different listings
   const totalCost = useMemo(() => items.reduce((t, i) => t + (Number(i.pricePerKg) || 0) * (Number(i.quantity) || 0), 0), [items]);
 
   const value = { items, addItem, updateQuantity, removeItem, clear, totalItems, totalCost };
