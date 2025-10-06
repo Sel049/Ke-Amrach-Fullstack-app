@@ -1,4 +1,4 @@
-# 🌾 Ke geberew - Ethiopian Agricultural Marketplace
+# 🌾 Ke Amrach - Ethiopian Agricultural Marketplace
 
 ## ⚡ Quick Start
 
