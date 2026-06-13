@@ -1,4 +1,4 @@
-# 🌾 Ke geberew - Ethiopian Agricultural Marketplace
+# 🌾 Ke Amrach - Ethiopian Agricultural Marketplace
 
 ## ⚡ Quick Start
 
@@ -34,7 +34,6 @@ Ke Amrach is a full-stack e-commerce solution that empowers Ethiopian farmers to
 
 ### 🌱 **For Farmers**
 - **Product Management**: Create, edit, and manage agricultural product listings
-- **Inventory Tracking**: Real-time inventory management and stock updates
 - **Order Management**: Comprehensive order processing and status tracking
 - **Analytics Dashboard**: Detailed insights into sales, performance, and market trends
 - **Profile Management**: Complete farmer profile with farm details and certifications
