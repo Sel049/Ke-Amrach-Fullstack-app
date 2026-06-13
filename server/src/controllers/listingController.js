@@ -35,9 +35,48 @@ export const getAllActiveListings = async (req, res) => {
         pl.unit,
         pl.currency,
         u.id as farmer_user_id,
-        u.phone as farmer_phone
+        u.phone as farmer_phone,
+        fp.farm_name,
+        fp.farm_size_ha,
+        fp.crops,
+        fp.farming_methods,
+        -- Calculate farmer verification status based on profile completion and verification docs
+        CASE 
+          WHEN (
+            -- Profile fields (70 points total)
+            (CASE WHEN NULLIF(TRIM(fp.farm_name), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.farm_size_ha), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.crops), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.farming_methods), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            -- Verification docs (30 points total)
+            (CASE WHEN EXISTS (
+              SELECT 1 FROM verification_documents vd 
+              WHERE vd.user_id = u.id AND vd.document_type = 'national-id' AND vd.status = 'verified'
+            ) THEN 15 ELSE 0 END) +
+            (CASE WHEN EXISTS (
+              SELECT 1 FROM verification_documents vd 
+              WHERE vd.user_id = u.id AND vd.document_type = 'land-certificate' AND vd.status = 'verified'
+            ) THEN 15 ELSE 0 END)
+          ) >= 100 THEN 'verified'
+          WHEN (
+            (CASE WHEN NULLIF(TRIM(fp.farm_name), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.farm_size_ha), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.crops), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.farming_methods), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN EXISTS (
+              SELECT 1 FROM verification_documents vd 
+              WHERE vd.user_id = u.id AND vd.document_type = 'national-id' AND vd.status = 'verified'
+            ) THEN 15 ELSE 0 END) +
+            (CASE WHEN EXISTS (
+              SELECT 1 FROM verification_documents vd 
+              WHERE vd.user_id = u.id AND vd.document_type = 'land-certificate' AND vd.status = 'verified'
+            ) THEN 15 ELSE 0 END)
+          ) >= 70 THEN 'in_progress'
+          ELSE 'not_verified'
+        END as verification_status
       FROM produce_listings pl
       JOIN users u ON pl.farmer_user_id = u.id
+      LEFT JOIN farmer_profiles fp ON u.id = fp.user_id
       LEFT JOIN user_avatars ua ON u.id = ua.user_id
       WHERE pl.status = 'active'
       AND pl.quantity > 0
@@ -105,7 +144,8 @@ export const getAllActiveListings = async (req, res) => {
           phone: listing.farmer_phone,
           rating: stats.avg_rating,
           reviewCount: stats.total_reviews,
-          isVerified: false // Default verification status
+          isVerified: listing.verification_status === 'verified',
+          verificationStatus: listing.verification_status
         }
       };
     });
@@ -727,10 +767,25 @@ export const getListings = async (req, res) => {
     }
 
     if (verifiedOnly) {
-      whereClause += " AND u.id IN (SELECT user_id FROM farmer_profiles WHERE certifications IS NOT NULL)";
+      whereClause += ` AND (
+        -- Profile fields (70 points total)
+        (CASE WHEN NULLIF(TRIM(fp.farm_name), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+        (CASE WHEN NULLIF(TRIM(fp.farm_size_ha), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+        (CASE WHEN NULLIF(TRIM(fp.crops), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+        (CASE WHEN NULLIF(TRIM(fp.farming_methods), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+        -- Verification docs (30 points total)
+        (CASE WHEN EXISTS (
+          SELECT 1 FROM verification_documents vd 
+          WHERE vd.user_id = u.id AND vd.document_type = 'national-id' AND vd.status = 'verified'
+        ) THEN 15 ELSE 0 END) +
+        (CASE WHEN EXISTS (
+          SELECT 1 FROM verification_documents vd 
+          WHERE vd.user_id = u.id AND vd.document_type = 'land-certificate' AND vd.status = 'verified'
+        ) THEN 15 ELSE 0 END)
+      ) >= 100`;
     }
 
-    // Get listings with farmer info and avatar
+    // Get listings with farmer info and avatar, including verification status
     const [listings] = await pool.query(
       `SELECT
         l.*,
@@ -739,9 +794,46 @@ export const getListings = async (req, res) => {
         u.region as farmer_region,
         u.woreda as farmer_woreda,
         fp.farm_name,
+        fp.farm_size_ha,
+        fp.crops,
+        fp.farming_methods,
         fp.experience_years,
         fp.certifications,
-        ua.url as farmer_avatar
+        ua.url as farmer_avatar,
+        -- Calculate farmer verification status based on profile completion and verification docs
+        CASE 
+          WHEN (
+            -- Profile fields (70 points total)
+            (CASE WHEN NULLIF(TRIM(fp.farm_name), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.farm_size_ha), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.crops), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.farming_methods), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            -- Verification docs (30 points total)
+            (CASE WHEN EXISTS (
+              SELECT 1 FROM verification_documents vd 
+              WHERE vd.user_id = u.id AND vd.document_type = 'national-id' AND vd.status = 'verified'
+            ) THEN 15 ELSE 0 END) +
+            (CASE WHEN EXISTS (
+              SELECT 1 FROM verification_documents vd 
+              WHERE vd.user_id = u.id AND vd.document_type = 'land-certificate' AND vd.status = 'verified'
+            ) THEN 15 ELSE 0 END)
+          ) >= 100 THEN 'verified'
+          WHEN (
+            (CASE WHEN NULLIF(TRIM(fp.farm_name), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.farm_size_ha), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.crops), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN NULLIF(TRIM(fp.farming_methods), '') IS NOT NULL THEN 17.5 ELSE 0 END) +
+            (CASE WHEN EXISTS (
+              SELECT 1 FROM verification_documents vd 
+              WHERE vd.user_id = u.id AND vd.document_type = 'national-id' AND vd.status = 'verified'
+            ) THEN 15 ELSE 0 END) +
+            (CASE WHEN EXISTS (
+              SELECT 1 FROM verification_documents vd 
+              WHERE vd.user_id = u.id AND vd.document_type = 'land-certificate' AND vd.status = 'verified'
+            ) THEN 15 ELSE 0 END)
+          ) >= 70 THEN 'in_progress'
+          ELSE 'not_verified'
+        END as verification_status
       FROM produce_listings l
       JOIN users u ON l.farmer_user_id = u.id
       LEFT JOIN farmer_profiles fp ON u.id = fp.user_id
@@ -778,7 +870,8 @@ export const getListings = async (req, res) => {
         certifications: listing.certifications,
         rating: 4.5, // Default rating - you can implement actual rating system later
         reviewCount: 0, // Default review count - you can implement actual review system later
-        isVerified: !!listing.certifications
+        isVerified: listing.verification_status === 'verified',
+        verificationStatus: listing.verification_status
       }
     }));
 

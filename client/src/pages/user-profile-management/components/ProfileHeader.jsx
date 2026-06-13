@@ -49,22 +49,39 @@ const ProfileHeader = ({ userRole, currentLanguage, onEditPhoto, user }) => {
   }, [userRole, user?.id]);
 
   const getVerificationBadge = () => {
-    const isVerified = user?.verificationStatus === 'verified';
+    // Determine verification status based on completion rate and verification documents
+    const completionRate = user?.completionRate || 0;
+    const isFullyVerified = completionRate >= 100;
+    const isPartiallyVerified = completionRate >= 70;
+    
+    let badgeConfig;
+    if (isFullyVerified) {
+      badgeConfig = {
+        color: 'bg-success/10 text-success border border-success/20',
+        icon: 'CheckCircle',
+        text: currentLanguage === 'am' ? 'የተረጋገጠ' : 'Verified'
+      };
+    } else if (isPartiallyVerified) {
+      badgeConfig = {
+        color: 'bg-warning/10 text-warning border border-warning/20',
+        icon: 'Clock',
+        text: currentLanguage === 'am' ? 'በሂደት ላይ' : 'In Progress'
+      };
+    } else {
+      badgeConfig = {
+        color: 'bg-error/10 text-error border border-error/20',
+        icon: 'AlertCircle',
+        text: currentLanguage === 'am' ? 'አልተረጋገጠም' : 'Not Verified'
+      };
+    }
+    
     return (
-      <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${
-        isVerified
-          ? 'bg-success/10 text-success border border-success/20' :'bg-warning/10 text-warning border border-warning/20'
-      }`}>
+      <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${badgeConfig.color}`}>
         <Icon
-          name={isVerified ? "CheckCircle" : "Clock"}
+          name={badgeConfig.icon}
           size={12}
         />
-        <span>
-          {currentLanguage === 'am'
-            ? (isVerified ? 'የተረጋገጠ' : 'በመጠባበቅ ላይ')
-            : (isVerified ? 'Verified' : 'Pending')
-          }
-        </span>
+        <span>{badgeConfig.text}</span>
       </div>
     );
   };

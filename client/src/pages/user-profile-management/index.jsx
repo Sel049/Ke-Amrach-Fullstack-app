@@ -8,7 +8,6 @@ import RoleSpecificSection from './components/RoleSpecificSection';
 import VerificationSection from './components/VerificationSection';
 import OrderHistorySection from './components/OrderHistorySection';
 import SecuritySection from './components/SecuritySection';
-import FarmerProfileStats from './components/FarmerProfileStats';
 import CertificationManagement from './components/CertificationManagement';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
@@ -52,16 +51,59 @@ const UserProfileManagement = () => {
       try {
         const data = await userService.getMe();
         const role = data.role || 'farmer';
-        // Compute profile completion (not order-based)
+        
+        // For farmers, also fetch farmer profile data for completion calculation
+        let farmerProfileData = {};
+        if (role === 'farmer') {
+          try {
+            const api = await import('../../services/apiService');
+            const farmerProfile = await api.default.get('/farmer-profile/profile');
+            farmerProfileData = farmerProfile.data || {};
+          } catch (error) {
+            console.error('Failed to fetch farmer profile:', error);
+          }
+        }
+        // Compute profile completion (not order-based) - matches server-side logic
         const computeProfileCompletion = (userRole, u, verificationFlags = {}) => {
           if (!u) return 0;
-          const common = ['fullName', 'phone', 'region', 'woreda', 'avatarUrl'];
-          const buyerFields = ['businessType', 'preferredSuppliers', 'purchaseVolume', 'deliveryPreference'];
-          const farmerFields = ['farmName', 'farmSize', 'primaryCrops', 'experienceYears'];
-          let fields = userRole === 'buyer' ? [...common, ...buyerFields] : [...common, ...farmerFields];
+          
+          if (userRole === 'farmer') {
+            // Farmer completion: 70% profile fields + 30% verification docs (matches server logic)
+            let profileScore = 0;
+            
+            // Base profile fields worth 70 points total (17.5 points each)
+            const checkField = (value) => {
+              if (value === null || value === undefined) return false;
+              if (Array.isArray(value)) return value.length > 0;
+              if (typeof value === 'number') return value > 0;
+              return String(value).trim() !== '';
+            };
+            
+            // Farm name (17.5 points) - matches server field: farm_name
+            if (checkField(u.farmName) || checkField(u.farm_name)) profileScore += 17.5;
+            
+            // Farm size (17.5 points) - matches server field: farm_size_ha
+            if (checkField(u.farmSize) || checkField(u.farm_size_ha)) profileScore += 17.5;
+            
+            // Crops (17.5 points) - matches server field: crops
+            if (checkField(u.primaryCrops) || checkField(u.crops)) profileScore += 17.5;
+            
+            // Farming methods (17.5 points) - matches server field: farming_methods
+            if (checkField(u.farmingMethods) || checkField(u.farming_methods)) profileScore += 17.5;
+            
+            // Verification docs worth 30 points total (15 points each)
+            let verificationScore = 0;
+            if (verificationFlags.nationalIdVerified) verificationScore += 15;
+            if (verificationFlags.landCertificateVerified) verificationScore += 15;
+            
+            return Math.min(100, Math.round(profileScore + verificationScore));
+          } else if (userRole === 'buyer') {
+            // Buyer completion: profile fields + verification docs based on business type
+            const common = ['fullName', 'phone', 'region', 'woreda', 'avatarUrl'];
+            const buyerFields = ['businessType', 'preferredSuppliers', 'purchaseVolume', 'deliveryPreference'];
+            let fields = [...common, ...buyerFields];
 
-          // Include verification requirements for buyers based on business type
-          if (userRole === 'buyer') {
+            // Include verification requirements for buyers based on business type
             const bt = String(u.businessType || '').toLowerCase();
             const isIndividual = bt === 'individual';
             const requiresBusinessDocs = bt && bt !== 'individual';
@@ -70,28 +112,27 @@ const UserProfileManagement = () => {
             } else if (requiresBusinessDocs) {
               fields = [...fields, '__verified_business_license__', '__verified_tax_certificate__'];
             }
-          } else if (userRole === 'farmer') {
-            // Farmers require National ID and Land Use Certificate
-            fields = [...fields, '__verified_national_id__', '__verified_land_certificate__'];
-          }
 
-          // Only count fields that exist on user or synthetic verification placeholders
-          const available = fields.filter((k) => k.startsWith('__verified_') || Object.prototype.hasOwnProperty.call(u, k));
-          const checkFilled = (v) => {
-            if (v === null || v === undefined) return false;
-            if (Array.isArray(v)) return v.length > 0;
-            if (typeof v === 'number') return v > 0; // treat 0 as not filled for numeric profile entries
-            return String(v).trim() !== '';
-          };
-          const filled = available.filter((k) => {
-            if (k === '__verified_national_id__') return !!verificationFlags.nationalIdVerified;
-            if (k === '__verified_business_license__') return !!verificationFlags.businessLicenseVerified;
-            if (k === '__verified_tax_certificate__') return !!verificationFlags.taxCertificateVerified;
-            if (k === '__verified_land_certificate__') return !!verificationFlags.landCertificateVerified;
-            return checkFilled(u[k]);
-          });
-          const denom = available.length || fields.length;
-          return denom ? Math.round((filled.length / denom) * 100) : 0;
+            // Only count fields that exist on user or synthetic verification placeholders
+            const available = fields.filter((k) => k.startsWith('__verified_') || Object.prototype.hasOwnProperty.call(u, k));
+            const checkFilled = (v) => {
+              if (v === null || v === undefined) return false;
+              if (Array.isArray(v)) return v.length > 0;
+              if (typeof v === 'number') return v > 0;
+              return String(v).trim() !== '';
+            };
+            const filled = available.filter((k) => {
+              if (k === '__verified_national_id__') return !!verificationFlags.nationalIdVerified;
+              if (k === '__verified_business_license__') return !!verificationFlags.businessLicenseVerified;
+              if (k === '__verified_tax_certificate__') return !!verificationFlags.taxCertificateVerified;
+              if (k === '__verified_land_certificate__') return !!verificationFlags.landCertificateVerified;
+              return checkFilled(u[k]);
+            });
+            const denom = available.length || fields.length;
+            return denom ? Math.round((filled.length / denom) * 100) : 0;
+          }
+          
+          return 0;
         };
 
         // Build verification flags for buyers and farmers
@@ -101,7 +142,7 @@ const UserProfileManagement = () => {
             const docsRes = await verificationService.getDocuments();
             const docs = Array.isArray(docsRes?.documents) ? docsRes.documents : (Array.isArray(docsRes) ? docsRes : []);
             const norm = (s) => String(s || '').toLowerCase().replace(/[-_]/g, '');
-            const isVerifiedType = (t) => docs.some(d => norm(d.type || d.document_type) === norm(t) && String(d.status || '').toLowerCase() === 'verified');
+            const isVerifiedType = (t) => docs.some(d => norm(d.id || d.type || d.document_type) === norm(t) && String(d.status || '').toLowerCase() === 'verified');
             verificationFlags = {
               nationalIdVerified: isVerifiedType('national-id'),
               businessLicenseVerified: isVerifiedType('business-license'),
@@ -113,8 +154,10 @@ const UserProfileManagement = () => {
           }
         } catch (_) {}
 
-        const completionRate = computeProfileCompletion(role, data, verificationFlags);
-        setUser({ ...data, completionRate });
+        // Merge farmer profile data with user data for completion calculation
+        const mergedData = role === 'farmer' ? { ...data, ...farmerProfileData } : data;
+        const completionRate = computeProfileCompletion(role, mergedData, verificationFlags);
+        setUser({ ...mergedData, completionRate });
         setUserRole(role);
       } catch (e) {
         // ignore; layout will protect route elsewhere
@@ -229,12 +272,6 @@ const UserProfileManagement = () => {
     },
     ...(userRole === 'farmer' ? [
       {
-        id: 'stats',
-        label: 'Profile Stats',
-        labelAm: 'የመገለጫ ስታቲስቲክስ',
-        icon: 'BarChart'
-      },
-      {
         id: 'certifications',
         label: 'Certifications',
         labelAm: 'ማረጋገጫዎች',
@@ -286,12 +323,6 @@ const UserProfileManagement = () => {
             currentLanguage={currentLanguage}
           />
         );
-      case 'stats':
-        return userRole === 'farmer' ? (
-          <FarmerProfileStats
-            currentLanguage={currentLanguage}
-          />
-        ) : null;
       case 'certifications':
         return userRole === 'farmer' ? (
           <CertificationManagement

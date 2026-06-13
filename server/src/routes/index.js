@@ -38,7 +38,7 @@ router.use('/verification', verificationRoutes);
 router.get('/health-legacy', (req, res) => {
   res.json({
     status: 'OK',
-    message: 'Ethio-Farmers-Shop API is running',
+    message: 'Ke Amrach API is running',
     timestamp: new Date().toISOString()
   });
 });
