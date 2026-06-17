@@ -2,7 +2,7 @@ import mysql from 'mysql2/promise';
 import 'dotenv/config';
 
 /**
- * Validate required environment variables
+ Validate required environment variables
  */
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME'];
 const missingVars = requiredEnvVars.filter((key) => !process.env[key]);
