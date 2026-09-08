@@ -112,7 +112,7 @@ const AdminSidebar = ({ isCollapsed, onToggleCollapse }) => {
       {/* Toggle Button */}
       <button
         onClick={onToggleCollapse}
-        className="absolute -right-3 top-6 w-6 h-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-110"
+        className="absolute right-1 top-2 w-6 h-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-110 z-50"
       >
         <Icon name={isCollapsed ? 'ChevronRight' : 'ChevronLeft'} className="w-4 h-4" />
       </button>
@@ -140,7 +140,7 @@ const AdminSidebar = ({ isCollapsed, onToggleCollapse }) => {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4">
-        <div className="px-4 space-y-6">
+        <div className={`${isCollapsed ? 'px-0 justify-center' : 'px-4'} space-y-6`}>
           {adminMenuSections.map((section) => (
             <div key={section.id} className="space-y-2">
               {/* Section Header */}
@@ -167,7 +167,11 @@ const AdminSidebar = ({ isCollapsed, onToggleCollapse }) => {
                     <Link
                       key={item.path}
                       to={item.path}
-                      className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                      className={`${
+                        isCollapsed
+                          ? 'flex justify-center px-0 py-2'
+                          : 'flex items-center space-x-3 px-3 py-2'
+                      } rounded-lg transition-colors ${
                         isActive(item.path)
                           ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
                           : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -204,15 +208,18 @@ const AdminSidebar = ({ isCollapsed, onToggleCollapse }) => {
             </span>
           </button>
         ) : (
-          <button
-            onClick={() => {
-              logout();
-              navigate('/authentication-login-register');
-            }}
-            className="w-full flex justify-center p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-          >
-            <Icon name="LogOut" className="w-4 h-4" />
-          </button>
+          <div className="flex justify-center py-4">
+            <button
+              onClick={() => {
+                logout();
+                navigate('/authentication-login-register');
+              }}
+              className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+              title="Logout"
+            >
+              <Icon name="LogOut" className="w-4 h-4 text-white" />
+            </button>
+          </div>
         )}
       </div>
     </div>

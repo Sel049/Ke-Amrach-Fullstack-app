@@ -11,7 +11,7 @@ const AuthenticatedLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-background">
-      <AuthenticatedTopBar />
+      <AuthenticatedTopBar isCollapsed={isCollapsed} userRole={userRole} />
       
       {userRole === 'admin' ? (
         <AdminSidebar
@@ -27,7 +27,7 @@ const AuthenticatedLayout = ({ children }) => {
         />
       )}
 
-      <div className={`pt-14 ${isCollapsed ? 'pl-16' : 'pl-72'} transition-all ${userRole === 'admin' ? 'pb-20' : ''}`}>
+      <div className={`pt-14 ${isCollapsed ? 'pl-16' : userRole === 'admin' ? 'pl-64' : 'pl-72'} transition-all ${userRole === 'admin' ? 'pb-20' : ''}`}>
         <main className="p-4 lg:p-6">
           {children}
         </main>

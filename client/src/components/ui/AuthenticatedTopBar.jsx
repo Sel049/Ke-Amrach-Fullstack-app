@@ -7,7 +7,7 @@ import { useLanguage } from '../../hooks/useLanguage.jsx';
 import { useCart } from '../../hooks/useCart.jsx';
 import NotificationBell from '../NotificationBell.jsx';
 
-const AuthenticatedTopBar = () => {
+const AuthenticatedTopBar = ({ isCollapsed, userRole }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { language, toggle, setLanguage } = useLanguage();
@@ -44,10 +44,12 @@ const AuthenticatedTopBar = () => {
     </div>
   );
 
+  const sidebarOffset = isCollapsed ? 'ml-16' : (userRole === 'admin' ? 'ml-64' : 'ml-72');
+
   return (
-    <div className="fixed top-0 left-0 right-0 z-40 border-b bg-surface border-border">
-      <div className="h-14 px-4 flex items-center justify-between">
-        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/app')}>
+    <div className={`fixed top-0 left-0 z-40 border-b bg-surface border-border transition-all duration-300 ${sidebarOffset}`}>
+      <div className="h-14 px-4 sm:px-6 flex items-center justify-between">
+        <div className="flex items-center space-x-3 cursor-pointer pl-1 sm:pl-3" onClick={() => navigate('/app')}>
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Icon name="Sprout" size={18} color="white" />
           </div>

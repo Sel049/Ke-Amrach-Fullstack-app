@@ -363,11 +363,7 @@ const RoleBasedSidebar = ({ userRole, isAuthenticated, isCollapsed, onToggleColl
       {/* Toggle Button */}
       <button
         onClick={onToggleCollapse}
-        className={`absolute -right-3 top-4 w-6 h-6 text-white rounded-full flex items-center justify-center transition-colors shadow-lg ${
-          userRole === 'admin' 
-            ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
-            : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
-        }`}
+        className="absolute right-1 top-2 w-6 h-6 text-white rounded-full flex items-center justify-center transition-colors shadow-lg z-50 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
       >
         <Icon name={isCollapsed ? 'ChevronRight' : 'ChevronLeft'} className="w-4 h-4" />
       </button>
@@ -417,7 +413,7 @@ const RoleBasedSidebar = ({ userRole, isAuthenticated, isCollapsed, onToggleColl
       {/* Menu Items */}
       <nav className="flex-1 overflow-y-auto py-4">
         {userRole === 'admin' ? (
-          <div className="px-4 space-y-1">
+          <div className={`${isCollapsed ? 'px-0 justify-center' : 'px-4'} space-y-1`}>
             {filteredAdminSections.map((section) => (
               <div key={section.id} className="space-y-1">
                 {/* Section Header */}
@@ -439,19 +435,23 @@ const RoleBasedSidebar = ({ userRole, isAuthenticated, isCollapsed, onToggleColl
                 
                 {/* Section Items */}
                 {expandedSections[section.id] && (
-                  <div className="space-y-1 ml-2">
+                  <div className={`space-y-1 ${isCollapsed ? 'justify-center' : 'ml-2'}`}>
                     {section.items.map((item) => (
                       <Link
                         key={item.path}
                         to={item.path}
                         title={`${language === 'am' ? (item.nameAm || item.name) : item.name}${item.shortcut ? ` (${item.shortcut})` : ''}`}
-                        className={`flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group ${
+                        className={`${
+                          isCollapsed
+                            ? 'flex justify-center px-0 py-2'
+                            : 'flex items-center justify-between px-3 py-2'
+                        } rounded-lg transition-all duration-200 group ${
                           isActive(item.path)
                             ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md'
                             : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:shadow-sm'
                         }`}
                       >
-                        <div className="flex items-center space-x-3">
+                        <div className={`${isCollapsed ? 'flex items-center justify-center' : 'flex items-center space-x-3'}`}>
                           <Icon name={item.icon} className="w-4 h-4 flex-shrink-0" />
                           {!isCollapsed && (
                             <span className="text-sm font-medium">
@@ -481,13 +481,17 @@ const RoleBasedSidebar = ({ userRole, isAuthenticated, isCollapsed, onToggleColl
             ))}
           </div>
         ) : (
-          <div className="px-4 space-y-2">
+          <div className={`${isCollapsed ? 'px-0 justify-center' : 'px-4'} space-y-2`}>
             {menuItems.map((item, index) => (
               <Link
                 key={item.path}
                 to={item.path}
                 title={(language === 'am' ? (item.nameAm || item.name) : item.name) || item.name}
-                className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                className={`${
+                  isCollapsed
+                    ? 'flex justify-center px-0 py-2'
+                    : 'flex items-center space-x-3 px-3 py-2'
+                } rounded-lg transition-colors ${
                   isActive(item.path)
                     ? 'bg-primary text-white shadow-md'
                     : 'text-foreground hover:bg-accent hover:text-accent-foreground'
@@ -547,9 +551,16 @@ const RoleBasedSidebar = ({ userRole, isAuthenticated, isCollapsed, onToggleColl
               </div>
             ) : (
               <div className="flex justify-center py-4">
-                <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-md">
+                <button
+                  onClick={() => {
+                    logout();
+                    navigate('/authentication-login-register');
+                  }}
+                  className="w-8 h-8 bg-gradient-to-r from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                  title="Logout"
+                >
                   <Icon name="Shield" className="w-4 h-4 text-white" />
-                </div>
+                </button>
               </div>
             )}
           </div>
