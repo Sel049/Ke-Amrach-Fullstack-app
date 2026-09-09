@@ -16,7 +16,6 @@ import MetricsCard from "./components/MetricsCard";
 import QuickActionCard from "./components/QuickActionCard";
 import ProduceListingCard from "./components/ProduceListingCard";
 import MarketTrendsWidget from "./components/MarketTrendsWidget";
-import RecentActivityFeed from "./components/RecentActivityFeed";
 
 const DashboardFarmerHome = () => {
   const navigate = useNavigate();
@@ -29,7 +28,6 @@ const DashboardFarmerHome = () => {
   // Dashboard data state
   const [farmerMetrics, setFarmerMetrics] = useState([]);
   const [produceListings, setProduceListings] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -58,15 +56,13 @@ const DashboardFarmerHome = () => {
         setError(null);
 
         // Fetch all dashboard data in parallel using new API service
-        const [metricsRes, listingsRes, activityRes] = await Promise.all([
+        const [metricsRes, listingsRes] = await Promise.all([
           farmerService.getFarmerMetrics(),
-          farmerService.getFarmerListings({ limit: 6 }),
-          farmerService.getFarmerActivity({ limit: 5 })
+          farmerService.getFarmerListings({ limit: 6 })
         ]);
 
         setFarmerMetrics(metricsRes || []);
         setProduceListings(listingsRes.listings || []);
-        setRecentActivity(activityRes || []);
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
         console.error("Error details:", error.response?.data || error.message);
@@ -114,21 +110,17 @@ const DashboardFarmerHome = () => {
       const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
       // Refresh all dashboard data
-      const [metricsRes, listingsRes, activityRes] = await Promise.all([
+      const [metricsRes, listingsRes] = await Promise.all([
         axios.get(`${API_BASE}/farmers/metrics`, {
           headers: { Authorization: `Bearer ${idToken}` }
         }),
         axios.get(`${API_BASE}/farmers/listings?limit=6`, {
-          headers: { Authorization: `Bearer ${idToken}` }
-        }),
-        axios.get(`${API_BASE}/farmers/activity?limit=5`, {
           headers: { Authorization: `Bearer ${idToken}` }
         })
       ]);
 
       setFarmerMetrics(metricsRes.data || []);
       setProduceListings(listingsRes.data.listings || []);
-      setRecentActivity(activityRes.data || []);
       setError(null);
     } catch (error) {
       console.error("Failed to refresh dashboard data:", error);
@@ -331,7 +323,7 @@ const DashboardFarmerHome = () => {
             </div>
           </div>
 
-          {/* Main Content: Stack Active Listings, Market Trends, and Recent Activity vertically */}
+          {/* Main Content: Stack Active Listings and Market Trends vertically */}
           <div className="space-y-8">
             {/* Active Listings */}
             <div>
@@ -400,14 +392,6 @@ const DashboardFarmerHome = () => {
               )}
             </div>
 
-            {/* Recent Activity */}
-            <div>
-              {isLoading ? (
-                <div className="h-48 bg-gray-200 rounded-lg animate-pulse" />
-              ) : (
-                <RecentActivityFeed currentLanguage={currentLanguage} recentActivity={recentActivity} />
-              )}
-            </div>
           </div>
 
           {/* Mobile Pull-to-Refresh */}

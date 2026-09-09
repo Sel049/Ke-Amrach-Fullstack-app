@@ -510,12 +510,6 @@ export const farmerService = {
     return response.data;
   },
 
-  // Get farmer activity
-  getFarmerActivity: async (params = {}) => {
-    const response = await apiClient.get('/farmers/activity', { params });
-    return response.data;
-  },
-
   // Get farmer listings
   getFarmerListings: async (params = {}) => {
     const response = await apiClient.get('/farmers/listings', { params });

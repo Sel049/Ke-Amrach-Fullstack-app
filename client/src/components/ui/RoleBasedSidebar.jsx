@@ -63,12 +63,6 @@ const RoleBasedSidebar = ({ userRole, isAuthenticated, isCollapsed, onToggleColl
       icon: 'TrendingUp'
     },
     {
-      name: 'All Activities',
-      nameAm: 'ሁሉም እንቅስቃሴዎች',
-      path: '/farmer-activity',
-      icon: 'Activity'
-    },
-    {
       name: 'Reviews',
       nameAm: 'ግምገማዎች',
       path: '/farmer-reviews',

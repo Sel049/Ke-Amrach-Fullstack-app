@@ -21,7 +21,6 @@ import FarmerReviews from './pages/reviews/FarmerReviews.jsx';
 import NotificationsPage from './pages/notifications';
 import FarmerMyListings from './pages/farmer-my-listings';
 import FavoritesPage from './pages/favorites';
-import FarmerActivityPage from './pages/dashboard-farmer-home/components/FarmerActivityPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth.jsx";
@@ -99,11 +98,6 @@ const Routes = () => {
         <Route path="/orders-farmer" element={
           <ProtectedRoute requiredRole="farmer">
             <FarmerOrders />
-          </ProtectedRoute>
-        } />
-        <Route path="/farmer-activity" element={
-          <ProtectedRoute requiredRole="farmer">
-            <FarmerActivityPage />
           </ProtectedRoute>
         } />
         <Route path="/user-profile-management" element={
