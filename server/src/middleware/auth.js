@@ -76,3 +76,25 @@ export const authGuard = async (req, res, next) => {
     return res.status(401).json({ error: "Invalid token" });
   }
 };
+
+// Admin-only guard: verifies the authenticated user maps to an active admin role.
+export const adminGuard = async (req, res, next) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const { pool } = await import('../config/database.js');
+    const [rows] = await pool.query(
+      "SELECT id, full_name, email FROM users WHERE firebase_uid = ? AND role = 'admin'",
+      [uid]
+    );
+    if (rows.length === 0) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    req.user = { ...req.user, id: rows[0].id, full_name: rows[0].full_name, email: rows[0].email };
+    return next();
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+};

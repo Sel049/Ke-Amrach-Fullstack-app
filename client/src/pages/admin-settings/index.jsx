@@ -4,11 +4,13 @@ import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/AppIcon.jsx';
 import Button from '../../components/ui/Button.jsx';
+import { settingsService } from '../../services/apiService.js';
 
 const AdminSettings = () => {
   const { user, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
   const [isLoading, setIsLoading] = useState(false);
+  const [saveMessage, setSaveMessage] = useState({ type: '', text: '' });
   const [settings, setSettings] = useState({
     general: {
       siteName: 'Ethio Farmers Shop',
@@ -68,11 +70,20 @@ const AdminSettings = () => {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Settings are already initialized with default values
+      const data = await settingsService.getSettings();
+      const s = data?.settings || data;
+      if (s && typeof s === 'object') {
+        setSettings(prev => ({
+          general: { ...prev.general, ...(s.general || {}) },
+          notifications: { ...prev.notifications, ...(s.notifications || {}) },
+          security: { ...prev.security, ...(s.security || {}) },
+          payment: { ...prev.payment, ...(s.payment || {}) },
+          features: { ...prev.features, ...(s.features || {}) }
+        }));
+      }
     } catch (error) {
       console.error('Failed to load settings:', error);
+      setSaveMessage({ type: 'error', text: 'Failed to load settings from server' });
     } finally {
       setIsLoading(false);
     }
@@ -90,13 +101,14 @@ const AdminSettings = () => {
 
   const handleSaveSettings = async () => {
     setIsLoading(true);
+    setSaveMessage({ type: '', text: '' });
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('Settings saved:', settings);
-      // Show success message
+      await settingsService.updateSettings(settings);
+      setSaveMessage({ type: 'success', text: 'Settings saved successfully' });
+      setTimeout(() => setSaveMessage({ type: '', text: '' }), 4000);
     } catch (error) {
       console.error('Failed to save settings:', error);
+      setSaveMessage({ type: 'error', text: error?.response?.data?.error || 'Failed to save settings' });
     } finally {
       setIsLoading(false);
     }
@@ -392,7 +404,17 @@ const AdminSettings = () => {
                 </p>
               </div>
               <div className="flex items-center space-x-4">
-                <Button variant="outline" size="sm" iconName="RotateCcw">
+                {saveMessage.text && (
+                  <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-sm font-medium ${
+                    saveMessage.type === 'success'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                  }`}>
+                    <Icon name={saveMessage.type === 'success' ? 'CheckCircle' : 'AlertCircle'} size={16} />
+                    <span>{saveMessage.text}</span>
+                  </div>
+                )}
+                <Button variant="outline" size="sm" iconName="RotateCcw" onClick={loadSettings}>
                   Reset
                 </Button>
                 <Button 

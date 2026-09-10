@@ -2,6 +2,7 @@ import { pool } from "../config/database.js";
 import admin from "../config/firebase.js";
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { getSettingValue } from "../services/settingsService.js";
 
 export const syncUser = async (req, res) => {
   const uid = req.user.uid;
@@ -15,6 +16,14 @@ export const syncUser = async (req, res) => {
 // User registration with Firebase + MySQL dual registration
 export const registerUser = async (req, res) => {
   try {
+    // Enforce feature flag from system_settings (defaults to enabled).
+    // Checked BEFORE field validation so a disabled registration returns a
+    // clean 403 instead of leaking validation errors.
+    const registrationEnabled = await getSettingValue('features', 'userRegistration', true);
+    if (registrationEnabled === false) {
+      return res.status(403).json({ error: "Registration is currently disabled" });
+    }
+
     const { email, password, full_name, phone, role, region, woreda } = req.body;
 
     // Validate required fields

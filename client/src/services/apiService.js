@@ -625,6 +625,27 @@ export const searchService = {
   }
 };
 
+// Settings Service
+export const settingsService = {
+  // Get public settings (maintenance mode, feature flags) - no auth required
+  getPublicSettings: async () => {
+    const response = await apiClient.get('/settings/public');
+    return response.data;
+  },
+
+  // Get full settings (admin only)
+  getSettings: async () => {
+    const response = await apiClient.get('/settings');
+    return response.data;
+  },
+
+  // Update settings (admin only)
+  updateSettings: async (settings) => {
+    const response = await apiClient.put('/settings', settings);
+    return response.data;
+  }
+};
+
 // Error handling utility
 export const handleApiError = (error) => {
   if (error.response) {

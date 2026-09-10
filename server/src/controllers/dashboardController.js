@@ -561,11 +561,113 @@ export const getAnalyticsData = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Admin analytics helpers
+// ---------------------------------------------------------------------------
+
+const ADMIN_PERIODS = ['7d', '30d', '90d', '1y'];
+
+const PERIOD_CONFIG = {
+  '7d': { days: 7, bucket: 'day' },
+  '30d': { days: 30, bucket: 'day' },
+  '90d': { days: 90, bucket: 'week' },
+  '1y': { days: 365, bucket: 'month' },
+};
+
+const CATEGORY_COLORS = ['bg-amber-500', 'bg-emerald-500', 'bg-blue-500', 'bg-purple-500', 'bg-rose-500'];
+
+const MS_DAY = 86400000;
+
+// SQL DATE_FORMAT expression that turns a timestamp into the bucket key used
+// for chart aggregation (day / ISO-week-start / month-start).
+function bucketExpr(column, bucket) {
+  if (bucket === 'week') {
+    return `DATE_FORMAT(DATE_SUB(${column}, INTERVAL WEEKDAY(${column}) DAY), '%Y-%m-%d')`;
+  }
+  if (bucket === 'month') {
+    return `DATE_FORMAT(${column}, '%Y-%m-01')`;
+  }
+  return `DATE_FORMAT(${column}, '%Y-%m-%d')`;
+}
+
+// Builds a UTC-aligned date range for a period, including the previous period
+// (for growth %) and the ordered list of chart bucket labels.
+function buildDateRange(period) {
+  const config = PERIOD_CONFIG[period] || PERIOD_CONFIG['30d'];
+  const { days, bucket } = config;
+
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const end = new Date(todayUtc.getTime() + MS_DAY); // tomorrow 00:00 UTC (exclusive)
+  const start = new Date(end.getTime() - days * MS_DAY);
+  const prevEnd = new Date(start.getTime());
+  const prevStart = new Date(prevEnd.getTime() - days * MS_DAY);
+
+  const labels = [];
+  if (bucket === 'week') {
+    const monday = new Date(start.getTime());
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+    for (let w = new Date(monday); w.getTime() < end.getTime(); w.setUTCDate(w.getUTCDate() + 7)) {
+      labels.push(w.toISOString().slice(0, 10));
+    }
+  } else if (bucket === 'month') {
+    let y = start.getUTCFullYear();
+    let m = start.getUTCMonth();
+    const monthCount = Math.ceil(days / 28) + 1;
+    for (let i = 0; i < monthCount; i++) {
+      labels.push(`${y}-${String(m + 1).padStart(2, '0')}-01`);
+      m += 1;
+      if (m === 12) { m = 0; y += 1; }
+    }
+  } else {
+    for (let t = start.getTime(); t < end.getTime(); t += MS_DAY) {
+      labels.push(new Date(t).toISOString().slice(0, 10));
+    }
+  }
+
+  return {
+    bucket,
+    startStr: start.toISOString().slice(0, 10),
+    endStr: end.toISOString().slice(0, 10),
+    prevStartStr: prevStart.toISOString().slice(0, 10),
+    prevEndStr: prevEnd.toISOString().slice(0, 10),
+    labels,
+  };
+}
+
+// Maps aggregated SQL rows ({ k: bucketKey, v: total }) onto the ordered label
+// list so every bucket is present (zero-filled when missing).
+function zeroFill(rows, range) {
+  const map = new Map();
+  for (const row of rows) {
+    map.set(String(row.k), Number(row.v) || 0);
+  }
+  return range.labels.map((label) => ({ label, value: map.get(label) || 0 }));
+}
+
+function growthPct(current, previous) {
+  if (!previous) return current > 0 ? 100 : 0;
+  return Number((((current - previous) / previous) * 100).toFixed(1));
+}
+
+function formatRelativeTime(date) {
+  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diffSec < 60) return 'just now';
+  const mins = Math.floor(diffSec / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
 // Get admin analytics data
 export const getAdminAnalytics = async (req, res) => {
   try {
     const uid = req.user.uid;
-    const { period = '30d' } = req.query;
+    const period = ADMIN_PERIODS.includes(req.query.period) ? req.query.period : '30d';
 
     // Verify admin role
     const [userRows] = await pool.query(
@@ -577,50 +679,108 @@ export const getAdminAnalytics = async (req, res) => {
       return res.status(403).json({ error: "Admin access required" });
     }
 
-    // Calculate date range
-    let dateFilter = '';
-    let previousPeriodFilter = '';
-    
-    if (period === '7d') {
-      dateFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
-      previousPeriodFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)";
-    } else if (period === '30d') {
-      dateFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
-      previousPeriodFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
-    } else if (period === '90d') {
-      dateFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)";
-      previousPeriodFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 180 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)";
-    } else if (period === '1y') {
-      dateFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 1 YEAR)";
-      previousPeriodFilter = "AND created_at >= DATE_SUB(NOW(), INTERVAL 2 YEAR) AND created_at < DATE_SUB(NOW(), INTERVAL 1 YEAR)";
-    }
+    const range = buildDateRange(period);
+    const keyExpr = bucketExpr('created_at', range.bucket);
 
-    // Get top performing farmers
-    const [topFarmers] = await pool.query(
-      `SELECT 
-        u.full_name as name,
-        COUNT(o.id) as orders,
-        COALESCE(SUM(o.total), 0) as revenue,
-        COALESCE((
-          SELECT AVG(r2.rating) 
-          FROM reviews r2 
-          JOIN produce_listings pl ON r2.listing_id = pl.id 
-          WHERE pl.farmer_user_id = u.id
-        ), 0) as rating
-       FROM users u
-       LEFT JOIN orders o ON u.id = o.farmer_user_id AND o.status IN ('completed', 'delivered') ${dateFilter.replace('created_at', 'o.created_at')}
-       WHERE u.role = 'farmer'
-       GROUP BY u.id, u.full_name
-       HAVING orders > 0
-       ORDER BY revenue DESC
-       LIMIT 5`
-    );
+    const [
+      [revTotalRows], [usrTotalRows], [ordTotalRows], [listTotalRows],
+      [revCurRows], [revPrevRows], [usrCurRows], [usrPrevRows],
+      [ordCurRows], [ordPrevRows], [listCurRows], [listPrevRows],
+      [revChartRows], [usrChartRows], [ordChartRows], [listChartRows],
+      [categoryRows], [farmerRows], [activityRows],
+    ] = await Promise.all([
+      pool.query("SELECT COALESCE(SUM(total), 0) AS v FROM orders WHERE status = 'completed'"),
+      pool.query("SELECT COUNT(*) AS v FROM users"),
+      pool.query("SELECT COUNT(*) AS v FROM orders"),
+      pool.query("SELECT COUNT(*) AS v FROM produce_listings WHERE status = 'active'"),
+
+      pool.query("SELECT COALESCE(SUM(total), 0) AS v FROM orders WHERE status = 'completed' AND created_at >= ? AND created_at < ?", [range.startStr, range.endStr]),
+      pool.query("SELECT COALESCE(SUM(total), 0) AS v FROM orders WHERE status = 'completed' AND created_at >= ? AND created_at < ?", [range.prevStartStr, range.prevEndStr]),
+      pool.query("SELECT COUNT(*) AS v FROM users WHERE created_at >= ? AND created_at < ?", [range.startStr, range.endStr]),
+      pool.query("SELECT COUNT(*) AS v FROM users WHERE created_at >= ? AND created_at < ?", [range.prevStartStr, range.prevEndStr]),
+      pool.query("SELECT COUNT(*) AS v FROM orders WHERE created_at >= ? AND created_at < ?", [range.startStr, range.endStr]),
+      pool.query("SELECT COUNT(*) AS v FROM orders WHERE created_at >= ? AND created_at < ?", [range.prevStartStr, range.prevEndStr]),
+      pool.query("SELECT COUNT(*) AS v FROM produce_listings WHERE created_at >= ? AND created_at < ?", [range.startStr, range.endStr]),
+      pool.query("SELECT COUNT(*) AS v FROM produce_listings WHERE created_at >= ? AND created_at < ?", [range.prevStartStr, range.prevEndStr]),
+
+      pool.query(`SELECT ${keyExpr} AS k, SUM(total) AS v FROM orders WHERE status = 'completed' AND created_at >= ? AND created_at < ? GROUP BY ${keyExpr}`, [range.startStr, range.endStr]),
+      pool.query(`SELECT ${keyExpr} AS k, COUNT(*) AS v FROM users WHERE created_at >= ? AND created_at < ? GROUP BY ${keyExpr}`, [range.startStr, range.endStr]),
+      pool.query(`SELECT ${keyExpr} AS k, COUNT(*) AS v FROM orders WHERE created_at >= ? AND created_at < ? GROUP BY ${keyExpr}`, [range.startStr, range.endStr]),
+      pool.query(`SELECT ${keyExpr} AS k, COUNT(*) AS v FROM produce_listings WHERE created_at >= ? AND created_at < ? GROUP BY ${keyExpr}`, [range.startStr, range.endStr]),
+
+      pool.query(`SELECT l.crop AS name, COALESCE(SUM(oi.line_total), 0) AS revenue
+          FROM order_items oi
+          JOIN orders o ON oi.order_id = o.id AND o.status = 'completed'
+          JOIN produce_listings l ON oi.listing_id = l.id
+          WHERE o.created_at >= ? AND o.created_at < ?
+          GROUP BY l.crop
+          ORDER BY revenue DESC
+          LIMIT 5`, [range.startStr, range.endStr]),
+
+      pool.query(`SELECT u.full_name AS name, COUNT(o.id) AS orders,
+            COALESCE(SUM(o.total), 0) AS revenue,
+            COALESCE((SELECT AVG(r2.rating) FROM reviews r2 JOIN produce_listings pl ON r2.listing_id = pl.id WHERE pl.farmer_user_id = u.id), 0) AS rating
+          FROM users u
+          LEFT JOIN orders o ON u.id = o.farmer_user_id AND o.status = 'completed' AND o.created_at >= ? AND o.created_at < ?
+          WHERE u.role = 'farmer'
+          GROUP BY u.id, u.full_name
+          HAVING orders > 0
+          ORDER BY revenue DESC
+          LIMIT 5`, [range.startStr, range.endStr]),
+
+      pool.query(`SELECT * FROM (
+            (SELECT 'order' AS type, CONCAT('Order #', o.id, ' placed') AS message, o.created_at AS ts, CONCAT('ETB ', FORMAT(o.total, 0)) AS value FROM orders o WHERE o.created_at >= ? AND o.created_at < ? ORDER BY o.created_at DESC LIMIT 12)
+            UNION ALL
+            (SELECT 'user' AS type, CONCAT('New user registered: ', u.full_name) AS message, u.created_at AS ts, u.role AS value FROM users u WHERE u.created_at >= ? AND u.created_at < ? ORDER BY u.created_at DESC LIMIT 12)
+            UNION ALL
+            (SELECT 'listing' AS type, CONCAT('New listing: ', l.title) AS message, l.created_at AS ts, l.crop AS value FROM produce_listings l WHERE l.created_at >= ? AND l.created_at < ? ORDER BY l.created_at DESC LIMIT 12)
+          ) t ORDER BY ts DESC LIMIT 12`, [range.startStr, range.endStr, range.startStr, range.endStr, range.startStr, range.endStr]),
+    ]);
+const revenueTotal = Number(revTotalRows[0].v);
+    const revenueCur = Number(revCurRows[0].v);
+    const revenuePrev = Number(revPrevRows[0].v);
+    const usersTotal = Number(usrTotalRows[0].v);
+    const usersCur = Number(usrCurRows[0].v);
+    const usersPrev = Number(usrPrevRows[0].v);
+    const ordersTotal = Number(ordTotalRows[0].v);
+    const ordersCur = Number(ordCurRows[0].v);
+    const ordersPrev = Number(ordPrevRows[0].v);
+    const listingsTotal = Number(listTotalRows[0].v);
+    const listingsCur = Number(listCurRows[0].v);
+    const listingsPrev = Number(listPrevRows[0].v);
+
+    const categoryTotal = categoryRows.reduce((sum, r) => sum + Number(r.revenue), 0);
+    const topCategories = categoryRows.map((r, i) => ({
+      name: r.name,
+      revenue: Number(r.revenue),
+      value: categoryTotal ? Number(((Number(r.revenue) / categoryTotal) * 100).toFixed(1)) : 0,
+      color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+    }));
+
+    const topFarmers = farmerRows.map((r) => ({
+      name: r.name,
+      orders: Number(r.orders),
+      revenue: Number(r.revenue),
+      rating: Number(Number(r.rating).toFixed(1)),
+    }));
+
+    const recentActivity = activityRows.map((r) => ({
+      type: r.type,
+      message: r.message,
+      value: r.value,
+      time: formatRelativeTime(new Date(r.ts)),
+    }));
 
     res.json({
       period,
-      topFarmers
+      revenue: { total: revenueTotal, growth: growthPct(revenueCur, revenuePrev), chart: zeroFill(revChartRows, range) },
+      users: { total: usersTotal, growth: growthPct(usersCur, usersPrev), chart: zeroFill(usrChartRows, range) },
+      orders: { total: ordersTotal, growth: growthPct(ordersCur, ordersPrev), chart: zeroFill(ordChartRows, range) },
+      listings: { total: listingsTotal, growth: growthPct(listingsCur, listingsPrev), chart: zeroFill(listChartRows, range) },
+      topCategories,
+      topFarmers,
+      recentActivity,
     });
-
   } catch (error) {
     console.error('Error fetching admin analytics:', error);
     res.status(500).json({ error: "Failed to fetch admin analytics data" });

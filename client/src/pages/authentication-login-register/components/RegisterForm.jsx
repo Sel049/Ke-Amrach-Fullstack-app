@@ -6,10 +6,12 @@ import { Checkbox } from '../../../components/ui/Checkbox';
 import RoleSelector from './RoleSelector';
 import LocationSelector from './LocationSelector';
 import { useAuth } from '../../../hooks/useAuth.jsx';
+import { usePublicSettings } from '../../../hooks/usePublicSettings.jsx';
 
 const RegisterForm = ({ currentLanguage, onAuthSuccess }) => {
   const navigate = useNavigate();
   const { register } = useAuth();
+  const { isRegistrationEnabled } = usePublicSettings();
   const [formData, setFormData] = useState({
     role: '',
     fullName: '',
@@ -135,6 +137,15 @@ const RegisterForm = ({ currentLanguage, onAuthSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {!isRegistrationEnabled && (
+        <div className="p-4 border rounded-lg bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
+          <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+            {currentLanguage === 'am' 
+              ? 'ምዝገባ ለጊዜው ተዘግቷል። እባክዎ ቆይተው ይሞክሩ።' 
+              : 'Registration is currently disabled by the administrator. Please check back later.'}
+          </p>
+        </div>
+      )}
       {errors?.general && (
         <div className="p-4 border rounded-lg bg-error/10 border-error/20">
           <p className="text-sm text-error">{errors?.general}</p>
@@ -229,6 +240,7 @@ const RegisterForm = ({ currentLanguage, onAuthSuccess }) => {
         variant="default"
         size="lg"
         loading={isLoading}
+        disabled={!isRegistrationEnabled}
         className="w-full"
       >
         {currentLanguage === 'am' ? 'ተመዝገብ' : 'Create Account'}

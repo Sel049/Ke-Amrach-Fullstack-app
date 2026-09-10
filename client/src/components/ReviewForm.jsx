@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { reviewService } from '../services/apiService.js';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { usePublicSettings } from '../hooks/usePublicSettings.jsx';
 
 const ReviewForm = ({ listingId, onReviewSubmitted, onCancel }) => {
   const { user } = useAuth();
+  const { isReviewsEnabled } = usePublicSettings();
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,6 +69,16 @@ const ReviewForm = ({ listingId, onReviewSubmitted, onCancel }) => {
       </div>
     );
   };
+
+  if (!isReviewsEnabled) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <p className="text-sm text-amber-800 font-medium">
+          Reviews are currently disabled by the administrator.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">

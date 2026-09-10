@@ -1,10 +1,17 @@
 import { pool } from '../config/database.js';
+import { getSettingValue } from '../services/settingsService.js';
 
 // Create a new review
 export const createReview = async (req, res) => {
   try {
     const uid = req.user.uid;
     const { listingId, rating, comment } = req.body;
+
+    // Enforce feature flag from system_settings (defaults to enabled)
+    const reviewsEnabled = await getSettingValue('features', 'reviewsEnabled', true);
+    if (reviewsEnabled === false) {
+      return res.status(403).json({ error: "Reviews are currently disabled" });
+    }
 
     if (!listingId || !rating || rating < 1 || rating > 5) {
       return res.status(400).json({ error: "Listing ID and valid rating (1-5) are required" });

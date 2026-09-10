@@ -344,3 +344,34 @@ BEGIN
 END$$
 
 DELIMITER ;
+-- =============================================================
+-- admin settings + audit trail tables
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS system_settings (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  category VARCHAR(64) NOT NULL,
+  setting_key VARCHAR(64) NOT NULL,
+  setting_value JSON NOT NULL,
+  updated_by BIGINT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_system_settings_key (category, setting_key),
+  INDEX idx_system_settings_category (category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NULL,
+  actor_name VARCHAR(255) NULL,
+  actor_role VARCHAR(32) NULL,
+  action VARCHAR(64) NOT NULL,
+  entity_type VARCHAR(64) NULL,
+  entity_id VARCHAR(64) NULL,
+  message VARCHAR(512) NULL,
+  meta JSON NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_activity_user (user_id),
+  INDEX idx_activity_action (action),
+  INDEX idx_activity_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -14,6 +14,7 @@ import dashboardRoutes from "./dashboardRoutes.js";
 import healthRoutes from "./healthRoutes.js";
 import paymentRoutes from "./paymentRoutes.js";
 import verificationRoutes from "./verificationRoutes.js";
+import settingsRoutes from "./settingsRoutes.js";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/health', healthRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/verification', verificationRoutes);
+router.use('/settings', settingsRoutes);
 
 // Legacy health check endpoint (redirects to new health system)
 router.get('/health-legacy', (req, res) => {

@@ -13,6 +13,7 @@ import apiRouter from "./routes/index.js";
 import { testConnection, pool } from "./config/database.js";
 // Error handling
 import { globalErrorHandler, notFoundHandler } from "./utils/errorHandler.js";
+import { getSettingValue } from "./services/settingsService.js";
 
 // App
 const app = express();
@@ -133,6 +134,38 @@ app.get("/health", (req, res) => {
     uptime: process.uptime(),
     environment: process.env.NODE_ENV
   });
+});
+
+// Maintenance mode (driven by system_settings.general.maintenanceMode).
+// Fails open on DB errors and lets health/settings/uploads through so an admin
+// can always disable maintenance.
+app.use(async (req, res, next) => {
+  try {
+    if (req.path === '/health' || req.path.startsWith('/api/settings') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    const maintenanceMode = await getSettingValue('general', 'maintenanceMode', false);
+    if (maintenanceMode === true) {
+      // Allow admins through so they can manage the site / turn maintenance off.
+      const header = req.headers.authorization || '';
+      const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+      if (token && token.startsWith('dev-token-')) {
+        const userId = Number(token.split('-')[2]) || null;
+        if (userId) {
+          const [rows] = await pool.query('SELECT role FROM users WHERE id = ?', [userId]);
+          if (rows.length && rows[0].role === 'admin') return next();
+        }
+      }
+      return res.status(503).json({
+        success: false,
+        error: 'Service temporarily unavailable',
+        message: 'We are performing maintenance. Please check back shortly.',
+      });
+    }
+    next();
+  } catch {
+    next();
+  }
 });
 
 // Public buyer listings endpoint (no authentication required)
@@ -283,6 +316,33 @@ app.listen(port, async () => {
           UNIQUE KEY uq_user_avatar (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+await pool.query(`CREATE TABLE IF NOT EXISTS system_settings (
+          id BIGINT PRIMARY KEY AUTO_INCREMENT,
+          category VARCHAR(64) NOT NULL,
+          setting_key VARCHAR(64) NOT NULL,
+          setting_value JSON NOT NULL,
+          updated_by BIGINT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_system_settings_key (category, setting_key),
+          INDEX idx_system_settings_category (category)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+        await pool.query(`CREATE TABLE IF NOT EXISTS activity_logs (
+          id BIGINT PRIMARY KEY AUTO_INCREMENT,
+          user_id BIGINT NULL,
+          actor_name VARCHAR(255) NULL,
+          actor_role VARCHAR(32) NULL,
+          action VARCHAR(64) NOT NULL,
+          entity_type VARCHAR(64) NULL,
+          entity_id VARCHAR(64) NULL,
+          message VARCHAR(512) NULL,
+          meta JSON NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_activity_user (user_id),
+          INDEX idx_activity_action (action),
+          INDEX idx_activity_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
         console.log('🧱 Ensured required tables exist');
 
         // Ensure new columns on existing orders table (idempotent)
