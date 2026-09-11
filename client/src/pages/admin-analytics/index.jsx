@@ -34,6 +34,8 @@ const AdminAnalytics = () => {
   });
 
   const [topFarmersData, setTopFarmersData] = useState([]);
+  const [topCategoriesData, setTopCategoriesData] = useState([]);
+  const [recentActivityData, setRecentActivityData] = useState([]);
 
   // Format rating like reviews/profile header
   const formatAverage = (value) => {
@@ -44,77 +46,46 @@ const AdminAnalytics = () => {
     return (fixed % 1 === 0) ? String(Math.trunc(fixed)) : String(fixed);
   };
 
-  // Mock analytics data
-  const mockAnalyticsData = {
-    revenue: {
-      total: 125000,
-      growth: 12.5,
-      chart: [
-        { month: 'Jan', value: 85000 },
-        { month: 'Feb', value: 92000 },
-        { month: 'Mar', value: 105000 },
-        { month: 'Apr', value: 118000 },
-        { month: 'May', value: 125000 }
-      ]
-    },
-    users: {
-      total: 1247,
-      growth: 8.3,
-      chart: [
-        { month: 'Jan', value: 800 },
-        { month: 'Feb', value: 920 },
-        { month: 'Mar', value: 1050 },
-        { month: 'Apr', value: 1150 },
-        { month: 'May', value: 1247 }
-      ]
-    },
-    orders: {
-      total: 3456,
-      growth: 15.2,
-      chart: [
-        { month: 'Jan', value: 2100 },
-        { month: 'Feb', value: 2400 },
-        { month: 'Mar', value: 2800 },
-        { month: 'Apr', value: 3200 },
-        { month: 'May', value: 3456 }
-      ]
-    },
-    listings: {
-      total: 2341,
-      growth: 6.7,
-      chart: [
-        { month: 'Jan', value: 1800 },
-        { month: 'Feb', value: 1950 },
-        { month: 'Mar', value: 2100 },
-        { month: 'Apr', value: 2250 },
-        { month: 'May', value: 2341 }
-      ]
-    }
+  // Map month number to abbreviated name
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // Normalize API chart buckets [{ label: 'YYYY-MM-DD' | 'YYYY-MM-01', value }] -> [{ month, value }]
+  // Label density is chosen per period so the axis stays readable (7 days -> weekday,
+  // 30 days -> day-of-month, 90 days -> "12 Aug", 1 year -> month name).
+  const normalizeChart = (chartRaw, period) => {
+    if (!Array.isArray(chartRaw) || chartRaw.length === 0) return [];
+    return chartRaw.map((item) => {
+      const raw = String(item?.label ?? item?.k ?? item?.date ?? '');
+      const value = Number(item?.value ?? item?.v ?? 0) || 0;
+      const d = new Date(`${raw.slice(0, 10)}T00:00:00Z`);
+      let month = raw;
+      if (!Number.isNaN(d.getTime())) {
+        if (period === '7d') month = dayNames[d.getUTCDay()];
+        else if (period === '30d') month = String(d.getUTCDate());
+        else if (period === '90d') month = `${d.getUTCDate()} ${monthNames[d.getUTCMonth()]}`;
+        else month = monthNames[d.getUTCMonth()];
+      }
+      return { month, value };
+    });
   };
 
-  const topCategories = [
-    { name: 'Grains', value: 45, color: 'bg-amber-500', revenue: 56000 },
-    { name: 'Coffee', value: 25, color: 'bg-amber-600', revenue: 32000 },
-    { name: 'Vegetables', value: 15, color: 'bg-green-500', revenue: 19000 },
-    { name: 'Fruits', value: 10, color: 'bg-orange-500', revenue: 12000 },
-    { name: 'Spices', value: 5, color: 'bg-red-500', revenue: 6000 }
-  ];
-
-  const topFarmers = [
-    { name: 'Alemayehu Kebede', orders: 45, revenue: 12500, rating: 4.8 },
-    { name: 'Meron Tadesse', orders: 38, revenue: 9800, rating: 4.7 },
-    { name: 'Getachew Molla', orders: 32, revenue: 8200, rating: 4.6 },
-    { name: 'Hanna Wolde', orders: 28, revenue: 7500, rating: 4.5 },
-    { name: 'Dawit Haile', orders: 25, revenue: 6800, rating: 4.4 }
-  ];
-
-  const recentActivity = [
-    { type: 'order', message: 'New order #ORD-001 placed', time: '2 minutes ago', value: 'ETB 5,600' },
-    { type: 'user', message: 'New farmer registered', time: '15 minutes ago', value: 'Alemayehu K.' },
-    { type: 'listing', message: 'New listing approved', time: '1 hour ago', value: 'Organic Coffee' },
-    { type: 'payment', message: 'Payment received', time: '2 hours ago', value: 'ETB 3,200' },
-    { type: 'delivery', message: 'Order delivered', time: '3 hours ago', value: 'ORD-004' }
-  ];
+  // Keep charts readable: when a period produces many buckets (e.g. 30 daily
+  // bars for "Last 30 days"), group consecutive buckets so at most `maxBars`
+  // bars render. Values are summed; the label is the last bucket of the group.
+  const compactChart = (chart, maxBars = 13) => {
+    if (!Array.isArray(chart) || chart.length <= maxBars) return chart || [];
+    const groupSize = Math.ceil(chart.length / maxBars);
+    const compacted = [];
+    for (let i = 0; i < chart.length; i += groupSize) {
+      const slice = chart.slice(i, i + groupSize);
+      compacted.push({
+        month: slice[slice.length - 1].month,
+        value: slice.reduce((sum, point) => sum + (Number(point.value) || 0), 0)
+      });
+    }
+    return compacted;
+  };
 
   useEffect(() => {
     loadAnalyticsData();
@@ -123,22 +94,106 @@ const AdminAnalytics = () => {
   const loadAnalyticsData = async () => {
     setIsLoading(true);
     try {
-      // Load mock data for all sections
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setAnalyticsData(mockAnalyticsData);
+      const response = await dashboardService.getAdminAnalytics({ period: timeRange });
       
-      // Load real data only for top farmers
-      try {
-        const response = await dashboardService.getAdminAnalytics({ period: timeRange });
-        setTopFarmersData(response.topFarmers || []);
-      } catch (error) {
-        console.error('Failed to load top farmers data:', error);
-        setTopFarmersData([]);
-      }
+      // Map API response to component state
+      setAnalyticsData({
+        revenue: {
+          total: Number(response.revenue?.total ?? 0),
+          growth: Number(response.revenue?.growth ?? 0),
+          chart: compactChart(normalizeChart(response.revenue?.chart, timeRange))
+        },
+        users: {
+          total: Number(response.users?.total ?? 0),
+          growth: Number(response.users?.growth ?? 0),
+          chart: compactChart(normalizeChart(response.users?.chart, timeRange))
+        },
+        orders: {
+          total: Number(response.orders?.total ?? 0),
+          growth: Number(response.orders?.growth ?? 0),
+          chart: compactChart(normalizeChart(response.orders?.chart, timeRange))
+        },
+        listings: {
+          total: Number(response.listings?.total ?? 0),
+          growth: Number(response.listings?.growth ?? 0),
+          chart: compactChart(normalizeChart(response.listings?.chart, timeRange))
+        }
+      });
+      
+      // Set top farmers, categories, and recent activity from API
+      setTopFarmersData(response.topFarmers || []);
+      setTopCategoriesData(response.topCategories || []);
+      setRecentActivityData(response.recentActivity || []);
     } catch (error) {
       console.error('Failed to load analytics data:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Export analytics data to CSV
+  const exportToCSV = () => {
+    try {
+      const rows = [
+        ['Ke-Amrach Analytics Report'],
+        [`Generated: ${new Date().toLocaleString()}`],
+        [`Time Range: ${timeRange}`],
+        [],
+        ['Summary KPIs'],
+        ['Metric', 'Total', 'Growth (%)'],
+        ['Revenue', `ETB ${analyticsData.revenue.total.toLocaleString()}`, `${analyticsData.revenue.growth}%`],
+        ['Users', analyticsData.users.total.toLocaleString(), `${analyticsData.users.growth}%`],
+        ['Orders', analyticsData.orders.total.toLocaleString(), `${analyticsData.orders.growth}%`],
+        ['Listings', analyticsData.listings.total.toLocaleString(), `${analyticsData.listings.growth}%`],
+        [],
+        ['Category Distribution'],
+        ['Category', 'Revenue (%)', 'Revenue (ETB)']
+      ];
+      
+      // Only real data is exported - sections with no data for the selected
+      // time range get an explicit "no data" row instead of sample values.
+      if (topCategoriesData.length > 0) {
+        topCategoriesData.forEach(c => {
+          rows.push([c.name, `${c.value}%`, `ETB ${(c.revenue || 0).toLocaleString()}`]);
+        });
+      } else {
+        rows.push(['No category data for the selected time range']);
+      }
+      
+      rows.push([]);
+      rows.push(['Top Farmers']);
+      rows.push(['Rank', 'Name', 'Orders', 'Revenue (ETB)', 'Rating']);
+      if (topFarmersData.length > 0) {
+        topFarmersData.forEach((f, i) => {
+          rows.push([i + 1, f.name, f.orders, (f.revenue || 0).toLocaleString(), formatAverage(f.rating) || 'N/A']);
+        });
+      } else {
+        rows.push(['No farmer data for the selected time range']);
+      }
+      
+      rows.push([]);
+      rows.push(['Recent Activity']);
+      rows.push(['Type', 'Message', 'Value', 'Time']);
+      if (recentActivityData.length > 0) {
+        recentActivityData.forEach(a => {
+          rows.push([a.type, a.message, a.value, a.time]);
+        });
+      } else {
+        rows.push(['No activity data for the selected time range']);
+      }
+      
+      const csvContent = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `analytics-report-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
     }
   };
 
@@ -175,6 +230,13 @@ const AdminAnalytics = () => {
     );
   }
 
+  // Safe max for charts (avoids Math.max on empty arrays)
+  const chartMax = (chart) => {
+    if (!Array.isArray(chart) || chart.length === 0) return 1;
+    const max = Math.max(...chart.map(d => d.value ?? 0));
+    return max > 0 ? max : 1;
+  };
+
   return (
     <AuthenticatedLayout>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -199,7 +261,7 @@ const AdminAnalytics = () => {
                   <option value="90d">Last 90 days</option>
                   <option value="1y">Last year</option>
                 </select>
-                <Button variant="outline" size="sm" iconName="Download">Export Report</Button>
+                <Button variant="outline" size="sm" iconName="Download" onClick={exportToCSV}>Export Report</Button>
                 <Button variant="primary" size="sm" iconName="RefreshCw" onClick={loadAnalyticsData}>
                   Refresh
                 </Button>
@@ -292,19 +354,27 @@ const AdminAnalytics = () => {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Revenue Trend</h3>
                 <Button variant="ghost" size="sm" iconName="MoreHorizontal" />
               </div>
-              <div className="h-64 flex items-end space-x-2">
-                {analyticsData.revenue.chart.map((item, index) => (
-                  <div key={index} className="flex-1 flex flex-col items-center">
-                    <div
-                      className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t"
-                      style={{ height: `${(item.value / Math.max(...analyticsData.revenue.chart.map(d => d.value))) * 200}px` }}
-                    ></div>
-                    <span className="text-xs text-slate-600 dark:text-slate-400 mt-2">{item.month}</span>
-                    <span className="text-xs font-medium text-slate-900 dark:text-white">
-                      ETB {(item.value / 1000).toFixed(0)}k
-                    </span>
+              <div className="h-64 flex items-end space-x-1">
+                {isLoading ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                   </div>
-                ))}
+                ) : analyticsData.revenue.chart.length > 0 ? (
+                  analyticsData.revenue.chart.map((item, index) => (
+                    <div key={index} className="flex-1 min-w-0 flex flex-col items-center">
+                      <div
+                        className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t"
+                        style={{ height: `${(item.value / chartMax(analyticsData.revenue.chart)) * 200}px` }}
+                      ></div>
+                      <span className="text-[10px] text-slate-600 dark:text-slate-400 mt-2 whitespace-nowrap">{item.month}</span>
+                      <span className="text-[10px] font-medium text-slate-900 dark:text-white whitespace-nowrap">
+                        ETB {(item.value / 1000).toFixed(0)}k
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-400">No revenue data</div>
+                )}
               </div>
             </Card>
 
@@ -315,28 +385,40 @@ const AdminAnalytics = () => {
                 <Button variant="ghost" size="sm" iconName="MoreHorizontal" />
               </div>
               <div className="space-y-4">
-                {topCategories.map((category, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-4 h-4 rounded-full ${category.color}`}></div>
-                      <span className="text-sm font-medium text-slate-900 dark:text-white">{category.name}</span>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <div className="w-24 bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${category.color}`}
-                          style={{ width: `${category.value}%` }}
-                        ></div>
+                {topCategoriesData.length > 0 ? (
+                  topCategoriesData.map((category, index) => {
+                    // Map API colors or use defaults
+                    const colors = ['bg-amber-500', 'bg-amber-600', 'bg-green-500', 'bg-orange-500', 'bg-red-500'];
+                    const color = category.color || colors[index % colors.length];
+                    return (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-4 h-4 rounded-full ${color}`}></div>
+                          <span className="text-sm font-medium text-slate-900 dark:text-white">{category.name}</span>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-24 bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${color}`}
+                              style={{ width: `${Math.min(category.value, 100)}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-sm text-slate-600 dark:text-slate-400 w-16 text-right">
+                            {category.value}%
+                          </span>
+                          <span className="text-sm font-medium text-slate-900 dark:text-white w-20 text-right">
+                            ETB {(category.revenue || 0).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-sm text-slate-600 dark:text-slate-400 w-16 text-right">
-                        {category.value}%
-                      </span>
-                      <span className="text-sm font-medium text-slate-900 dark:text-white w-20 text-right">
-                        ETB {category.revenue.toLocaleString()}
-                      </span>
-                    </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-10 text-slate-500 dark:text-slate-400">
+                    <Icon name="Package" size={48} className="mx-auto mb-2 opacity-50" />
+                    <p>No category data for the selected time range</p>
                   </div>
-                ))}
+                )}
               </div>
             </Card>
           </div>
@@ -386,20 +468,27 @@ const AdminAnalytics = () => {
                 <Button variant="ghost" size="sm" iconName="MoreHorizontal" />
               </div>
               <div className="space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                    <div className={`w-8 h-8 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0`}>
-                      <Icon name={getActivityIcon(activity.type)} size={16} className={getActivityColor(activity.type)} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-900 dark:text-white">{activity.message}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{activity.time}</p>
-                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{activity.value}</p>
+                {recentActivityData.length > 0 ? (
+                  recentActivityData.map((activity, index) => (
+                    <div key={index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <div className={`w-8 h-8 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Icon name={getActivityIcon(activity.type)} size={16} className={getActivityColor(activity.type)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-900 dark:text-white">{activity.message}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{activity.time}</p>
+                          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{activity.value}</p>
+                        </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-slate-500 dark:text-slate-400">
+                    <Icon name="Activity" size={48} className="mx-auto mb-2 opacity-50" />
+                    <p>No activity data for the selected time range</p>
                   </div>
-                ))}
+                )}
               </div>
           </Card>
           </div>

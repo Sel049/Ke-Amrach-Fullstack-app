@@ -141,7 +141,7 @@ app.get("/health", (req, res) => {
 // can always disable maintenance.
 app.use(async (req, res, next) => {
   try {
-    if (req.path === '/health' || req.path.startsWith('/api/settings') || req.path.startsWith('/uploads')) {
+    if (req.path === '/health' || req.path.startsWith('/api/settings') || req.path.startsWith('/api/auth') || req.path.startsWith('/uploads')) {
       return next();
     }
     const maintenanceMode = await getSettingValue('general', 'maintenanceMode', false);

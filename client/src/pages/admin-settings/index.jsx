@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth.jsx';
+import { usePublicSettings } from '../../hooks/usePublicSettings.jsx';
 import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Icon from '../../components/AppIcon.jsx';
@@ -8,6 +9,7 @@ import { settingsService } from '../../services/apiService.js';
 
 const AdminSettings = () => {
   const { user, isAuthenticated } = useAuth();
+  const { refresh: refreshPublicSettings } = usePublicSettings();
   const [activeTab, setActiveTab] = useState('general');
   const [isLoading, setIsLoading] = useState(false);
   const [saveMessage, setSaveMessage] = useState({ type: '', text: '' });
@@ -64,7 +66,7 @@ const AdminSettings = () => {
   ];
 
   useEffect(() => {
-    loadSettings();
+    loadAndSyncPublicSettings();
   }, []);
 
   const loadSettings = async () => {
@@ -89,6 +91,11 @@ const AdminSettings = () => {
     }
   };
 
+  const loadAndSyncPublicSettings = async () => {
+    await loadSettings();
+    try { await refreshPublicSettings(); } catch(_) {}
+  };
+
   const handleSettingChange = (category, key, value) => {
     setSettings(prev => ({
       ...prev,
@@ -104,6 +111,10 @@ const AdminSettings = () => {
     setSaveMessage({ type: '', text: '' });
     try {
       await settingsService.updateSettings(settings);
+      // Invalidate public settings cache so MaintenanceGate/amber banner reflect the change immediately
+      await refreshPublicSettings();
+      // Notify any other open tabs in this browser to re-fetch public settings instantly
+      try { localStorage.setItem('public_settings_updated', String(Date.now())); } catch (_) {}
       setSaveMessage({ type: 'success', text: 'Settings saved successfully' });
       setTimeout(() => setSaveMessage({ type: '', text: '' }), 4000);
     } catch (error) {
@@ -414,7 +425,7 @@ const AdminSettings = () => {
                     <span>{saveMessage.text}</span>
                   </div>
                 )}
-                <Button variant="outline" size="sm" iconName="RotateCcw" onClick={loadSettings}>
+                <Button variant="outline" size="sm" iconName="RotateCcw" onClick={loadAndSyncPublicSettings}>
                   Reset
                 </Button>
                 <Button 

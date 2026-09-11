@@ -22,6 +22,7 @@ import NotificationsPage from './pages/notifications';
 import FarmerMyListings from './pages/farmer-my-listings';
 import FavoritesPage from './pages/favorites';
 import ProtectedRoute from './components/ProtectedRoute';
+import MaintenanceGate from './components/MaintenanceGate.jsx';
 import { Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth.jsx";
 import CartPage from './pages/cart';
@@ -64,6 +65,7 @@ const Routes = () => {
   return (
     <BrowserRouter>
       <ErrorBoundary>
+      <MaintenanceGate>
       <ScrollToTop />
       <RouterRoutes>
                     {/* Public */}
@@ -214,6 +216,7 @@ const Routes = () => {
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
       {/* DevMode removed */}
+      </MaintenanceGate>
       </ErrorBoundary>
     </BrowserRouter>
   );

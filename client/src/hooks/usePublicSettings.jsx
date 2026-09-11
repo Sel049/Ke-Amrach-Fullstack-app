@@ -32,6 +32,34 @@ export const PublicSettingsProvider = ({ children }) => {
     load();
   }, []);
 
+  // Keep clients in sync with admin changes without a manual refresh:
+  // - fast polling (4s) while maintenance is ON so the gate lifts as soon as the
+  //   admin turns it off, normal polling (30s) otherwise
+  // - re-fetch whenever the tab becomes visible/focused
+  // - re-fetch when another tab in the same browser saves new settings
+  useEffect(() => {
+    const maintenanceActive = Boolean(settings?.general?.maintenanceMode ?? settings?.maintenanceMode);
+    const interval = setInterval(load, maintenanceActive ? 4000 : 30000);
+
+    const resync = () => {
+      if (document.visibilityState !== 'hidden') load();
+    };
+    const onStorage = (e) => {
+      if (e?.key === 'public_settings_updated') load();
+    };
+
+    document.addEventListener('visibilitychange', resync);
+    window.addEventListener('focus', resync);
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', resync);
+      window.removeEventListener('focus', resync);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [settings]);
+
   const value = {
     settings,
     loading,

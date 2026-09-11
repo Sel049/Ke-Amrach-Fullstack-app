@@ -8,8 +8,10 @@ import RegisterForm from './components/RegisterForm';
 import ForgotPasswordForm from './components/ForgotPasswordForm';
 import ResetPasswordForm from './components/ResetPasswordForm';
 import TrustSignals from './components/TrustSignals';
+import { usePublicSettings } from '../../hooks/usePublicSettings.jsx';
 
 const AuthenticationPage = () => {
+  const { isMaintenanceMode } = usePublicSettings();
   const [currentLanguage, setCurrentLanguage] = useState('en');
   const [activeTab, setActiveTab] = useState('login');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -99,6 +101,23 @@ const AuthenticationPage = () => {
             />
           </div>
         </header>
+
+        {/* Maintenance Notice for Visitors */}
+        {isMaintenanceMode && (
+          <div className="px-4 mx-auto max-w-md lg:max-w-lg">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-start space-x-3">
+              <Icon name="AlertTriangle" size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                  {currentLanguage === 'am' ? 'ሲስተሙ በጥገና ላይ ነው' : 'System Under Maintenance'}
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                  {currentLanguage === 'am' ? 'እየሰራን ነው — ቆየት ብለው ይሞክሩ' : 'We are working on improvements. You can still sign in, but some features may be limited.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <main className="flex-1 flex items-center justify-center p-4 lg:p-6">

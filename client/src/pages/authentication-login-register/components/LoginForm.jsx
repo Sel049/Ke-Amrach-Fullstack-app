@@ -57,8 +57,14 @@ const LoginForm = ({ currentLanguage, onAuthSuccess, onForgotPassword }) => {
           navigate('/dashboard-buyer-home');
         }
       } else {
+        // Check for maintenance mode error
+        const isMaintenance = result.error?.includes?.('maintenance') || 
+                              result.error?.includes?.('temporarily unavailable') ||
+                              result.error?.includes?.('503');
         setErrors({
-          general: result.error || (currentLanguage === 'am' ? 'የተሳሳተ መለያ ወይም የይለፍ ቃል' : 'Invalid credentials')
+          general: isMaintenance 
+            ? (currentLanguage === 'am' ? 'ሲስተሙ በጥገና ላይ ነው። እባክዎ ቆየት ብለው ይሞክሩ።' : 'System is under maintenance. Please try again later.')
+            : (result.error || (currentLanguage === 'am' ? 'የተሳሳተ መለያ ወይም የይለፍ ቃል' : 'Invalid credentials'))
         });
       }
     } catch (error) {
