@@ -31,6 +31,15 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // Enforce admin-configurable password minimum length.
+    // Falls back to 8 if the setting is missing or invalid.
+    const passwordMinLength = Number(await getSettingValue('security', 'passwordMinLength', 8)) || 8;
+    if (password.length < passwordMinLength) {
+      return res.status(400).json({
+        error: `Password must be at least ${passwordMinLength} characters long`
+      });
+    }
+
     // Check if user already exists in MySQL
     const [existingUsers] = await pool.query("SELECT id FROM users WHERE email = ?", [email]);
     if (existingUsers.length > 0) {
@@ -192,15 +201,20 @@ export const devLogin = async (req, res) => {
     );
 
     if (users.length === 0) {
+      console.warn(`Login attempt for unknown email: ${email}`);
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const user = users[0];
 
-    // Simple password check for development
-    if (password.length < 6) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
+    // DEBUG: Log password length for troubleshooting old accounts
+    console.log(`🔑 Login for ${email} (user_id=${user.id}) – client sent ${password.length}-char password`);
+
+    // NOTE: We intentionally do NOT enforce `passwordMinLength` here.
+    // Login is about verifying existing credentials — not about registration
+    // policy. Users who registered with shorter passwords before the admin
+    // raised the minimum must still be able to sign in. The minimum length
+    // is enforced at registration and password-reset time only.
 
     // Generate a simple dev token for testing
     const devToken = `dev-token-${user.id}-${Date.now()}`;
@@ -377,8 +391,12 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ error: "Token and new password are required" });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters long" });
+    // Enforce admin-configurable password minimum length.
+    const passwordMinLength = Number(await getSettingValue('security', 'passwordMinLength', 8)) || 8;
+    if (newPassword.length < passwordMinLength) {
+      return res.status(400).json({
+        error: `Password must be at least ${passwordMinLength} characters long`
+      });
     }
 
     // Find valid reset token

@@ -9,6 +9,7 @@ const PublicSettingsContext = createContext({
   isReviewsEnabled: true,
   isChatEnabled: true,
   isOrderTrackingEnabled: true,
+  passwordMinLength: 8,
   refresh: () => {}
 });
 
@@ -68,6 +69,8 @@ export const PublicSettingsProvider = ({ children }) => {
     isReviewsEnabled: settings?.features?.reviewsEnabled !== false,
     isChatEnabled: settings?.features?.chatEnabled !== false,
     isOrderTrackingEnabled: settings?.features?.orderTracking !== false,
+    // Password policy from admin settings (falls back to 8 if unavailable).
+    passwordMinLength: Number(settings?.security?.passwordMinLength) || 8,
     refresh: load
   };
 

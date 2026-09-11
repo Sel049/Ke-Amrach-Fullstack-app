@@ -3,10 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import { authService } from '../../../services/apiService';
+import { usePublicSettings } from '../../../hooks/usePublicSettings.jsx';
 
 const ResetPasswordForm = ({ currentLanguage }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { passwordMinLength } = usePublicSettings();
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -50,8 +52,8 @@ const ResetPasswordForm = ({ currentLanguage }) => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (password.length < passwordMinLength) {
+      setError(`Password must be at least ${passwordMinLength} characters long`);
       setIsLoading(false);
       return;
     }
@@ -87,7 +89,7 @@ const ResetPasswordForm = ({ currentLanguage }) => {
       successMessage: 'Password has been reset successfully. Redirecting to login...',
       errorMessage: 'Failed to reset password. Please try again.',
       passwordsNotMatch: 'Passwords do not match',
-      passwordTooShort: 'Password must be at least 6 characters long',
+      passwordTooShort: `Password must be at least ${passwordMinLength} characters long`,
       invalidToken: 'Invalid or expired reset token',
       validating: 'Validating reset token...'
     },
@@ -103,7 +105,7 @@ const ResetPasswordForm = ({ currentLanguage }) => {
       successMessage: 'ፓስዎርድ በተሳካ ሁኔታ ተስተካክሏል። ወደ መግባት ተመለስ...',
       errorMessage: 'ፓስዎርድ ማስተካከል አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
       passwordsNotMatch: 'ፓስዎርዶች አይጣጣሙም',
-      passwordTooShort: 'ፓስዎርድ ቢያንስ 6 ቁምፊዎች መሆን አለበት',
+      passwordTooShort: `ፓስዎርድ ቢያንስ ${passwordMinLength} ቁምፊዎች መሆን አለበት`,
       invalidToken: 'ልክ ያልሆነ ወይም የተጠናቀቀ የማስተካከያ ቶከን',
       validating: 'የማስተካከያ ቶከን እያረጋገጠ...'
     }

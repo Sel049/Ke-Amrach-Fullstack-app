@@ -11,7 +11,7 @@ import { usePublicSettings } from '../../../hooks/usePublicSettings.jsx';
 const RegisterForm = ({ currentLanguage, onAuthSuccess }) => {
   const navigate = useNavigate();
   const { register } = useAuth();
-  const { isRegistrationEnabled } = usePublicSettings();
+  const { isRegistrationEnabled, passwordMinLength } = usePublicSettings();
   const [formData, setFormData] = useState({
     role: '',
     fullName: '',
@@ -68,7 +68,7 @@ const RegisterForm = ({ currentLanguage, onAuthSuccess }) => {
     if (!formData?.region) newErrors.region = currentLanguage === 'am' ? 'ክልል መምረጥ ያስፈልጋል' : 'Region selection is required';
     if (!formData?.woreda) newErrors.woreda = currentLanguage === 'am' ? 'ወረዳ መምረጥ ያስፈልጋል' : 'Woreda selection is required';
     if (!formData?.password) newErrors.password = currentLanguage === 'am' ? 'የይለፍ ቃል ያስፈልጋል' : 'Password is required';
-    else if (formData?.password?.length < 6) newErrors.password = currentLanguage === 'am' ? 'የይለፍ ቃል ቢያንስ 6 ቁምፊ መሆን አለበት' : 'Password must be at least 6 characters';
+    else if (formData?.password?.length < passwordMinLength) newErrors.password = currentLanguage === 'am' ? `የይለፍ ቃል ቢያንስ ${passwordMinLength} ቁምፊ መሆን አለበት` : `Password must be at least ${passwordMinLength} characters`;
     if (formData?.password !== formData?.confirmPassword) newErrors.confirmPassword = currentLanguage === 'am' ? 'የይለፍ ቃሎች አይዛመዱም' : 'Passwords do not match';
     if (!formData?.agreeToTerms) newErrors.agreeToTerms = currentLanguage === 'am' ? 'የአገልግሎት ውሎችን መቀበል ያስፈልጋል' : 'You must agree to the terms of service';
     setErrors(newErrors);

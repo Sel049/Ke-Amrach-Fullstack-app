@@ -3,8 +3,10 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import { usePublicSettings } from '../../../hooks/usePublicSettings.jsx';
 
 const SecuritySection = ({ currentLanguage }) => {
+  const { passwordMinLength } = usePublicSettings();
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [passwordData, setPasswordData] = useState({
@@ -173,7 +175,7 @@ const SecuritySection = ({ currentLanguage }) => {
                 type="password"
                 value={passwordData?.newPassword}
                 onChange={(e) => handlePasswordChange('newPassword', e?.target?.value)}
-                description={getLabel('Must be at least 8 characters long', 'ቢያንስ 8 ቁምፊዎች ሊኖሩት ይገባል')}
+                description={getLabel(`Must be at least ${passwordMinLength} characters long`, `ቢያንስ ${passwordMinLength} ቁምፊዎች ሊኖሩት ይገባል`)}
                 required
               />
               

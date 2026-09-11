@@ -3,6 +3,7 @@ import { authService } from '../../../services/apiService';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Icon from '../../../components/AppIcon';
+import { usePublicSettings } from '../../../hooks/usePublicSettings.jsx';
 
 const ForgotPasswordModal = ({ isOpen, onClose, currentLanguage }) => {
   const [step, setStep] = useState('request'); // 'request', 'sent', 'reset'
@@ -13,6 +14,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, currentLanguage }) => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const { passwordMinLength } = usePublicSettings();
 
   const getLabel = (text, textAm) => {
     return currentLanguage === 'am' ? textAm : text;
@@ -24,7 +26,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, currentLanguage }) => {
   };
 
   const validatePassword = (password) => {
-    return password.length >= 6;
+    return password.length >= passwordMinLength;
   };
 
   const handleRequestReset = async (e) => {
@@ -78,7 +80,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, currentLanguage }) => {
     }
 
     if (!validatePassword(newPassword)) {
-      setErrors({ newPassword: getLabel('Password must be at least 6 characters', 'የይለፍ ቃል ቢያንስ 6 ቁምፊ መሆን አለበት') });
+      setErrors({ newPassword: getLabel(`Password must be at least ${passwordMinLength} characters`, `የይለፍ ቃል ቢያንስ ${passwordMinLength} ቁምፊ መሆን አለበት`) });
       return;
     }
 

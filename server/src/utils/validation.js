@@ -8,8 +8,8 @@ export const commonSchemas = {
       'string.email': 'Please provide a valid email address',
       'any.required': 'Email is required'
     }),
-    password: Joi.string().min(6).required().messages({
-      'string.min': 'Password must be at least 6 characters long',
+    password: Joi.string().min(8).required().messages({
+      'string.min': 'Password must be at least 8 characters long',
       'any.required': 'Password is required'
     }),
     full_name: Joi.string().min(2).max(255).required().messages({
@@ -162,8 +162,8 @@ export const validatePhone = (phone) => {
 };
 
 export const validatePassword = (password) => {
-  // At least 6 characters, contains at least one letter and one number
-  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{6,}$/;
+  // At least 8 characters, contains at least one letter and one number
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
   return passwordRegex.test(password);
 };
 

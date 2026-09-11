@@ -97,6 +97,11 @@ export const getPublicSettings = async (req, res) => {
           maintenanceMode: settings.general?.maintenanceMode === true,
         },
         features: settings.features || {},
+        // Expose password policy so the client can validate before submitting.
+        // Only the minimum length is public; other security settings stay admin-only.
+        security: {
+          passwordMinLength: Number(settings.security?.passwordMinLength) || 8,
+        },
       },
     });
   } catch (error) {
