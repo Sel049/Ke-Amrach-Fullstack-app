@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { usePublicSettings } from '../../hooks/usePublicSettings.jsx';
 import RoleBasedSidebar from './RoleBasedSidebar.jsx';
@@ -9,9 +9,19 @@ import Icon from '../AppIcon.jsx';
 const AuthenticatedLayout = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   const { isMaintenanceMode } = usePublicSettings();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => (
+    typeof window !== 'undefined' && window.innerWidth < 1024
+  ));
   const userRole = user?.role || 'buyer';
   const isAdmin = user?.role === 'admin';
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    const handleViewportChange = (event) => setIsCollapsed(event.matches);
+
+    mediaQuery.addEventListener('change', handleViewportChange);
+    return () => mediaQuery.removeEventListener('change', handleViewportChange);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
