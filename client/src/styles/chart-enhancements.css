@@ -178,10 +178,14 @@
   .recharts-wrapper {
     font-size: 10px;
   }
-  
-  .chart-overlay {
-    position: relative !important;
-    margin-top: 1rem;
+
+  .chart-container .chart-overlay {
+    padding: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .chart-container:hover .recharts-wrapper {
+    transform: none;
   }
 }
 

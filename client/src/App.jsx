@@ -11,7 +11,9 @@ function App() {
       <AuthProvider>
         <CartProvider>
           <PublicSettingsProvider>
-            <Routes />
+            <div className="overflow-x-hidden w-full">
+              <Routes />
+            </div>
           </PublicSettingsProvider>
         </CartProvider>
       </AuthProvider>

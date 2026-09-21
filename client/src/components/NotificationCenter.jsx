@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { notificationService } from '../services/apiService.js';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useLanguage } from '../hooks/useLanguage.jsx';
+import Icon from './AppIcon.jsx';
 
 const NotificationCenter = ({ isOpen, onClose }) => {
   const { user } = useAuth();
+  const { language } = useLanguage();
+  const isAmharic = language === 'am';
+  const text = isAmharic ? {
+    title: 'ማሳወቂያዎች', markAll: 'ሁሉንም አንብብ', retry: 'እንደገና ሞክር', empty: 'እስካሁን ማሳወቂያ የለም', notification: 'ማሳወቂያ', fallback: 'አዲስ ማሳወቂያ አለዎት', error: 'ማሳወቂያዎችን መጫን አልተቻለም።'
+  } : {
+    title: 'Notifications', markAll: 'Mark all read', retry: 'Try again', empty: 'No notifications yet', notification: 'Notification', fallback: 'You have a new notification', error: 'Failed to load notifications'
+  };
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -26,7 +35,7 @@ const NotificationCenter = ({ isOpen, onClose }) => {
       setNotifications(response.notifications || []);
       setUnreadCount(response.unreadCount || 0);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load notifications');
+      setError(err.response?.data?.error || text.error);
     } finally {
       setLoading(false);
     }
@@ -58,82 +67,47 @@ const NotificationCenter = ({ isOpen, onClose }) => {
     }
   };
 
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'order_placed':
-        return '🛒';
-      case 'order_confirmed':
-        return '✅';
-      case 'order_shipped':
-        return '🚚';
-      case 'order_delivered':
-        return '📦';
-      case 'order_cancelled':
-        return '❌';
-      case 'new_listing':
-        return '🆕';
-      case 'price_change':
-        return '💰';
-      case 'review_received':
-        return '⭐';
-      case 'message':
-        return '💬';
-      case 'verification_document_uploaded':
-        return '📄';
-      case 'verification_document_approved':
-        return '✅';
-      case 'verification_document_rejected':
-        return '❌';
-      case 'verification_document_pending':
-        return '⏳';
-      case 'verification_document_uploaded_admin':
-        return '📋';
-      case 'listing_suspended':
-        return '⏸️';
-      case 'listing_activated':
-        return '▶️';
-      default:
-        return '🔔';
-    }
-  };
-
   const getNotificationTitle = (type) => {
     switch (type) {
       case 'order_placed':
-        return 'New Order';
+        return isAmharic ? 'አዲስ ትዕዛዝ' : 'New Order';
       case 'order_confirmed':
-        return 'Order Confirmed';
+        return isAmharic ? 'ትዕዛዝ ተረጋግጧል' : 'Order Confirmed';
       case 'order_shipped':
-        return 'Order Shipped';
+        return isAmharic ? 'ትዕዛዝ ተልኳል' : 'Order Shipped';
       case 'order_delivered':
-        return 'Order Delivered';
+        return isAmharic ? 'ትዕዛዝ ደርሷል' : 'Order Delivered';
       case 'order_cancelled':
-        return 'Order Cancelled';
+        return isAmharic ? 'ትዕዛዝ ተሰርዟል' : 'Order Cancelled';
       case 'new_listing':
-        return 'New Listing';
+        return isAmharic ? 'አዲስ ዝርዝር' : 'New Listing';
       case 'price_change':
-        return 'Price Change';
+        return isAmharic ? 'የዋጋ ለውጥ' : 'Price Change';
       case 'review_received':
-        return 'New Review';
+        return isAmharic ? 'አዲስ ግምገማ' : 'New Review';
       case 'message':
-        return 'New Message';
+        return isAmharic ? 'አዲስ መልዕክት' : 'New Message';
       case 'verification_document_uploaded':
-        return 'Document Uploaded';
+        return isAmharic ? 'ሰነድ ተጭኗል' : 'Document Uploaded';
       case 'verification_document_approved':
-        return 'Document Approved';
+        return isAmharic ? 'ሰነድ ጸድቋል' : 'Document Approved';
       case 'verification_document_rejected':
-        return 'Document Rejected';
+        return isAmharic ? 'ሰነድ ውድቅ ተደርጓል' : 'Document Rejected';
       case 'verification_document_pending':
-        return 'Document Pending';
+        return isAmharic ? 'ሰነድ በመጠባበቅ ላይ' : 'Document Pending';
       case 'verification_document_uploaded_admin':
-        return 'New Document for Review';
+        return isAmharic ? 'አዲስ ሰነድ ለግምገማ' : 'New Document for Review';
       case 'listing_suspended':
-        return 'Listing Suspended';
+        return isAmharic ? 'ዝርዝር ታግዷል' : 'Listing Suspended';
       case 'listing_activated':
-        return 'Listing Activated';
+        return isAmharic ? 'ዝርዝር ነቅቷል' : 'Listing Activated';
       default:
-        return 'Notification';
+        return text.notification;
     }
+  };
+
+  const getNotificationMessage = (notification) => {
+    return notification.payload?.message || text.fallback;
   };
 
   const formatDate = (dateString) => {
@@ -142,13 +116,13 @@ const NotificationCenter = ({ isOpen, onClose }) => {
     const diffInHours = (now - date) / (1000 * 60 * 60);
 
     if (diffInHours < 1) {
-      return 'Just now';
+      return isAmharic ? 'አሁን' : 'Just now';
     } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`;
+      return isAmharic ? `ከ${Math.floor(diffInHours)} ሰዓት በፊት` : `${Math.floor(diffInHours)}h ago`;
     } else if (diffInHours < 48) {
-      return 'Yesterday';
+      return isAmharic ? 'ትናንት' : 'Yesterday';
     } else {
-      return date.toLocaleDateString('en-US', {
+      return date.toLocaleDateString(isAmharic ? 'am-ET' : 'en-US', {
         month: 'short',
         day: 'numeric'
       });
@@ -166,12 +140,12 @@ const NotificationCenter = ({ isOpen, onClose }) => {
       />
 
       {/* Notification Panel */}
-      <div className="absolute right-0 top-0 h-full w-96 bg-white shadow-xl">
+      <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl">
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-800">
-              Notifications
+              {text.title}
               {unreadCount > 0 && (
                 <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
                   {unreadCount}
@@ -184,7 +158,7 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                   onClick={markAllAsRead}
                   className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  Mark all read
+                  {text.markAll}
                 </button>
               )}
               <button
@@ -219,13 +193,13 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                   onClick={fetchNotifications}
                   className="text-blue-600 hover:text-blue-700 underline"
                 >
-                  Try again
+                  {text.retry}
                 </button>
               </div>
             ) : notifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500">
-                <div className="text-4xl mb-2">🔔</div>
-                <p>No notifications yet</p>
+                <div className="mb-2 flex justify-center"><Icon name="Bell" size={36} className="text-primary" /></div>
+                <p>{text.empty}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
@@ -238,8 +212,8 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                     onClick={() => !notification.is_read && markAsRead(notification.id)}
                   >
                     <div className="flex items-start space-x-3">
-                      <div className="text-2xl">
-                        {getNotificationIcon(notification.type)}
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                        <Icon name="Bell" size={20} className="text-amber-600" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
@@ -251,7 +225,7 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                           </span>
                         </div>
                         <p className="text-sm text-gray-600 mt-1">
-                          {notification.payload?.message || 'You have a new notification'}
+                          {getNotificationMessage(notification)}
                         </p>
                         {!notification.is_read && (
                           <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>

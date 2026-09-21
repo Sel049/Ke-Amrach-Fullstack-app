@@ -65,6 +65,31 @@ const SearchHeader = ({
           </div>
 
           {/* Buttons removed from search bar per request */}
+          {/* Filters Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onFilterClick}
+            className="flex items-center gap-2"
+          >
+            <Icon name="Filter" size={16} />
+            <span className="hidden sm:inline">{t?.filters}</span>
+          </Button>
+
+          {/* Cart Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onCartClick}
+            className="relative"
+          >
+            <Icon name="ShoppingCart" size={18} />
+            {cartItemCount > 0 && (
+              <span className="absolute -top-1 -right-1 text-[10px] bg-primary text-white rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center">
+                {cartItemCount}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
     </div>

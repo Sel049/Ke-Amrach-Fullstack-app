@@ -33,7 +33,7 @@ const MetricsCard = ({
   };
 
   return (
-    <div className="p-4 border rounded-lg bg-card border-border lg:p-6 shadow-warm hover:shadow-warm-md transition-smooth">
+    <div className="p-6 border rounded-lg bg-card border-border shadow-warm hover:shadow-warm-md transition-smooth">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="mb-1 text-sm font-medium text-text-secondary">

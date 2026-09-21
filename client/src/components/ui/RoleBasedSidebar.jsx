@@ -351,7 +351,7 @@ const RoleBasedSidebar = ({ userRole, isAuthenticated, isCollapsed, onToggleColl
   }
 
   return (
-    <div className={`fixed left-0 top-0 h-full bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-r border-slate-200 dark:border-slate-700 transition-all duration-300 z-40 ${
+    <div className={`hidden sm:flex fixed left-0 top-0 h-full bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-r border-slate-200 dark:border-slate-700 transition-all duration-300 z-40 ${
       isCollapsed ? 'w-16' : 'w-72'
     }`}>
       {/* Toggle Button */}

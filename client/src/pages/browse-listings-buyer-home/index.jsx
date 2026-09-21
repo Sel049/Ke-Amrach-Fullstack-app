@@ -253,6 +253,7 @@ const BrowseListingsBuyerHome = () => {
   // Load initial data with caching and retry logic
   useEffect(() => {
     const loadInitialData = async (retryCount = 0) => {
+      let shouldFinishLoading = true;
       // Check cache first
       const cacheKey = 'listings_cache';
       const cachedData = localStorage.getItem(cacheKey);
@@ -324,6 +325,7 @@ const BrowseListingsBuyerHome = () => {
         if (retryCount < 3) {
           const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
           console.log(`Retrying in ${delay}ms...`);
+          shouldFinishLoading = false;
           setTimeout(() => loadInitialData(retryCount + 1), delay);
           return;
         }
@@ -333,7 +335,7 @@ const BrowseListingsBuyerHome = () => {
         setListings(mockListings);
         setFilteredListings(mockListings);
       } finally {
-        setIsLoading(false);
+        if (shouldFinishLoading) setIsLoading(false);
       }
     };
 
@@ -412,14 +414,16 @@ const BrowseListingsBuyerHome = () => {
     }
 
     // Apply single-select filters like old dashboard
-    if (selectedCategory && selectedCategory !== 'all') {
-      filtered = filtered?.filter(listing => listing?.category === selectedCategory);
+    const activeCategory = filters?.produceTypes?.[0] || 'all';
+    if (activeCategory !== 'all') {
+      filtered = filtered?.filter(listing => listing?.category === activeCategory);
     }
 
-    if (selectedRegion && selectedRegion !== 'all') {
+    const activeRegion = filters?.regions?.[0] || 'all';
+    if (activeRegion !== 'all') {
       filtered = filtered?.filter(listing => {
         const location = (listing?.farmer?.location || listing?.location || '')?.toLowerCase();
-        return location === selectedRegion?.toLowerCase() || location?.includes(selectedRegion?.toLowerCase());
+        return location === activeRegion?.toLowerCase() || location?.includes(activeRegion?.toLowerCase());
       });
     }
 
@@ -522,9 +526,11 @@ const BrowseListingsBuyerHome = () => {
       switch (filterToRemove?.type) {
         case 'produceType':
           newFilters.produceTypes = prev?.produceTypes?.filter(type => type !== filterToRemove?.value);
+          setSelectedCategory('all');
           break;
         case 'region':
           newFilters.regions = prev?.regions?.filter(region => region !== filterToRemove?.value);
+          setSelectedRegion('all');
           break;
         case 'priceRange':
           newFilters.priceRange = { min: '', max: '' };
@@ -546,6 +552,9 @@ const BrowseListingsBuyerHome = () => {
       priceRange: { min: '', max: '' },
       verifiedOnly: false
     });
+    setSelectedCategory('all');
+    setSelectedRegion('all');
+    setCurrentSort('relevance');
     setSearchQuery('');
   };
 
@@ -653,11 +662,11 @@ const BrowseListingsBuyerHome = () => {
         currentLanguage={currentLanguage}
       />
 
-      {/* Top filter bar (replaces sidebar) */}
+      {/* Desktop filter panel and mobile filter drawer */}
       <div className="p-4 lg:p-6">
         <FilterPanel
-          isOpen={true}
-          onClose={() => {}}
+          isOpen={isFilterPanelOpen}
+          onClose={() => setIsFilterPanelOpen(false)}
           filters={filters}
           onApplyFilters={(f) => {
             setFilters(f);
@@ -677,8 +686,8 @@ const BrowseListingsBuyerHome = () => {
       {/* Listings Content */}
       <div className="flex-1 p-4 lg:p-6">
           {/* Sort and Results Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <div className="text-sm text-text-secondary">
                 {isLoading ? (
                   <span>Loading...</span>
@@ -732,7 +741,7 @@ const BrowseListingsBuyerHome = () => {
               currentLanguage={currentLanguage}
             />
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {filteredListings?.map((listing) => (
                 <ProduceCard
                   key={listing?.id}
@@ -747,25 +756,6 @@ const BrowseListingsBuyerHome = () => {
             </div>
           )}
       </div>
-      {/* Mobile Filter Panel retained for small screens */}
-      <FilterPanel
-        isOpen={isFilterPanelOpen}
-        onClose={() => setIsFilterPanelOpen(false)}
-        filters={filters}
-        onApplyFilters={(f) => {
-          setFilters(f);
-          setSelectedCategory((f?.produceTypes && f.produceTypes[0]) || 'all');
-          setSelectedRegion((f?.regions && f.regions[0]) || 'all');
-          setCurrentSort(f?.sort || currentSort);
-        }}
-        currentLanguage={currentLanguage}
-        selectedCategory={selectedCategory}
-        selectedRegion={selectedRegion}
-        currentSort={currentSort}
-        categoryOptions={categories.map(c => ({ id: c.value, label: currentLanguage === 'am' ? c.labelAm : c.label }))}
-        regionOptions={regions.map(r => ({ id: r.label, label: currentLanguage === 'am' ? r.labelAm : r.label }))}
-      />
-
       {/* Mini Cart Modal */}
       {isCartOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

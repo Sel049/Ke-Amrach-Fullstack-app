@@ -254,9 +254,9 @@ const DashboardFarmerHome = () => {
 
   return (
     <AuthenticatedLayout>
-        <div className="mx-auto max-w-7xl">
+        <div className="container mx-auto px-4 py-2">
           {/* Welcome Section */}
-          <div className="mb-8">
+          <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 className="text-2xl font-bold lg:text-3xl text-text-primary">{welcomeText}</h1>
@@ -298,7 +298,7 @@ const DashboardFarmerHome = () => {
           )}
 
           {/* Metrics Cards */}
-          <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+          <div className="grid grid-cols-1 gap-6 mb-8 md:grid-cols-2 lg:grid-cols-4">
             {isLoading ? (
               // Loading skeleton for metrics
               Array.from({ length: 4 }).map((_, index) => (
@@ -324,7 +324,7 @@ const DashboardFarmerHome = () => {
           </div>
 
           {/* Main Content: Stack Active Listings and Market Trends vertically */}
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* Active Listings */}
             <div>
               <div className="flex items-center justify-between mb-4">

@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebase';
+import { notificationService, orderService } from '../../services/apiService';
 
 const MobileMenu = ({
   isOpen = false,
   onClose,
+  user,
   userRole = 'farmer',
   isAuthenticated = false,
   notificationCounts = {},
@@ -15,70 +17,83 @@ const MobileMenu = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [orderCount, setOrderCount] = useState(0);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) return undefined;
+
+    let isMounted = true;
+    const loadOrderCount = async () => {
+      try {
+        const response = userRole === 'farmer'
+          ? await orderService.getFarmerOrders({ limit: 100 })
+          : await orderService.getBuyerOrders({ limit: 100 });
+        const orders = Array.isArray(response) ? response : response?.orders;
+        if (isMounted) setOrderCount(Array.isArray(orders) ? orders.length : 0);
+      } catch (error) {
+        if (isMounted) setOrderCount(0);
+      }
+    };
+
+    loadOrderCount();
+    return () => { isMounted = false; };
+  }, [isOpen, isAuthenticated, userRole]);
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) return undefined;
+
+    let isMounted = true;
+    const loadNotificationCount = async () => {
+      try {
+        const response = await notificationService.getUserNotifications({
+          limit: 1,
+          unreadOnly: true
+        });
+        if (isMounted) setUnreadNotificationCount(response?.unreadCount || 0);
+      } catch (error) {
+        if (isMounted) setUnreadNotificationCount(0);
+      }
+    };
+
+    loadNotificationCount();
+    return () => { isMounted = false; };
+  }, [isOpen, isAuthenticated, user?.id]);
 
   const getMenuItems = () => {
-    const commonItems = [
-      {
-        id: 'market',
-        label: 'Market Trends',
-        labelAm: 'የገበያ አዝማሚያዎች',
-        icon: 'TrendingUp',
-        path: '/market-trends-dashboard',
-        roles: ['farmer', 'buyer']
-      },
-      {
-        id: 'profile',
-        label: 'Profile',
-        labelAm: 'መገለጫ',
-        icon: 'User',
-        path: '/user-profile-management',
-        roles: ['farmer', 'buyer']
-      }
-    ];
+    if (userRole === 'admin') {
+      return [
+        { id: 'dashboard', label: 'Dashboard', labelAm: 'ዳሽቦርድ', icon: 'Home', path: '/admin-dashboard' },
+        { id: 'users', label: 'User Management', labelAm: 'የተጠቃሚ አያያዝ', icon: 'Users', path: '/admin-users' },
+        { id: 'listings', label: 'Listing Management', labelAm: 'የዝርዝር አያያዝ', icon: 'Package', path: '/admin-listings' },
+        { id: 'orders', label: 'Order Management', labelAm: 'የትዕዛዝ አያያዝ', icon: 'ShoppingCart', path: '/admin-orders' },
+        { id: 'analytics', label: 'Analytics Dashboard', labelAm: 'የትንተና ዳሽቦርድ', icon: 'BarChart3', path: '/admin-analytics' },
+        { id: 'market', label: 'Market Trends', labelAm: 'የገበያ አዝማሚያዎች', icon: 'TrendingUp', path: '/market-trends-dashboard' },
+        { id: 'settings', label: 'System Settings', labelAm: 'የስርዓት ቅንብሮች', icon: 'Settings', path: '/admin-settings' }
+      ];
+    }
 
     if (userRole === 'farmer') {
       return [
-        {
-          id: 'dashboard',
-          label: 'Dashboard',
-          labelAm: 'ዳሽቦርድ',
-          icon: 'LayoutDashboard',
-          path: '/dashboard-farmer-home',
-          roles: ['farmer']
-        },
-        {
-          id: 'orders',
-          label: 'Order Management',
-          labelAm: 'የትዕዛዝ አስተዳደር',
-          icon: 'ShoppingBag',
-          path: '/order-management',
-          roles: ['farmer'],
-          badge: notificationCounts?.orders || 0
-        },
-        ...commonItems
-      ];
-    } else {
-      return [
-        {
-          id: 'browse',
-          label: 'Browse Listings',
-          labelAm: 'ዝርዝሮችን ፈልግ',
-          icon: 'Search',
-          path: '/browse-listings-buyer-home',
-          roles: ['buyer']
-        },
-        {
-          id: 'orders',
-          label: 'My Orders',
-          labelAm: 'የእኔ ትዕዛዞች',
-          icon: 'ShoppingBag',
-          path: '/order-management',
-          roles: ['buyer'],
-          badge: notificationCounts?.orders || 0
-        },
-        ...commonItems
+        { id: 'dashboard', label: 'Dashboard', labelAm: 'ዳሽቦርድ', icon: 'Home', path: '/dashboard-farmer-home' },
+        { id: 'payments', label: 'Payments', labelAm: 'ክፍያዎች', icon: 'CreditCard', path: '/payments' },
+        { id: 'add-listing', label: 'Add Listing', labelAm: 'ዝርዝር ጨምር', icon: 'Plus', path: '/add-listing' },
+        { id: 'listings', label: 'My Listings', labelAm: 'የእኔ ዝርዝሮች', icon: 'Package', path: '/farmer-my-listings' },
+        { id: 'orders', label: 'Orders', labelAm: 'ትዕዛዞች', icon: 'ShoppingCart', path: '/orders-farmer', badge: orderCount },
+        { id: 'market', label: 'Market Trends', labelAm: 'የገበያ አዝማሚያዎች', icon: 'TrendingUp', path: '/market-trends-dashboard' },
+        { id: 'reviews', label: 'Reviews', labelAm: 'ግምገማዎች', icon: 'Star', path: '/farmer-reviews' },
+        { id: 'profile', label: 'Profile', labelAm: 'መገለጫ', icon: 'User', path: '/user-profile-management' }
       ];
     }
+
+    return [
+      { id: 'dashboard', label: 'Dashboard', labelAm: 'ዳሽቦርድ', icon: 'Home', path: '/dashboard-buyer-home' },
+      { id: 'browse', label: 'Browse Listings', labelAm: 'ዝርዝሮችን ያስሱ', icon: 'Search', path: '/browse-listings-buyer-home' },
+      { id: 'orders', label: 'Orders', labelAm: 'ትዕዛዞች', icon: 'ShoppingCart', path: '/order-management', badge: orderCount },
+      { id: 'favorites', label: 'Favorites', labelAm: 'የምትወዱ', icon: 'Heart', path: '/favorites' },
+      { id: 'payments', label: 'Payments', labelAm: 'ክፍያዎች', icon: 'CreditCard', path: '/payments' },
+      { id: 'market', label: 'Market Trends', labelAm: 'የገበያ አዝማሚያዎች', icon: 'TrendingUp', path: '/market-trends-dashboard' },
+      { id: 'profile', label: 'Profile', labelAm: 'መገለጫ', icon: 'User', path: '/user-profile-management' }
+    ];
   };
 
   const secondaryItems = [
@@ -87,13 +102,15 @@ const MobileMenu = ({
       label: 'Notifications',
       labelAm: 'ማሳወቂያዎች',
       icon: 'Bell',
-      badge: notificationCounts?.total || 0
+      path: '/notifications',
+      badge: unreadNotificationCount
     },
     {
       id: 'settings',
       label: 'Settings',
       labelAm: 'ቅንብሮች',
-      icon: 'Settings'
+      icon: 'Settings',
+      path: userRole === 'admin' ? '/admin-settings' : '/user-profile-management'
     },
     {
       id: 'help',
@@ -131,7 +148,7 @@ const MobileMenu = ({
   return (
     <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={onClose}>
       <div
-        className="fixed right-0 top-0 h-full w-80 max-w-[85vw] bg-surface shadow-warm-lg animate-slide-in"
+        className="fixed right-0 top-0 flex h-full w-80 max-w-[85vw] flex-col bg-surface shadow-warm-lg animate-slide-in"
         onClick={(e) => e?.stopPropagation()}
       >
         {/* Header */}
@@ -154,15 +171,15 @@ const MobileMenu = ({
           </Button>
         </div>
 
-        <div className="flex flex-col h-full overflow-y-auto pb-20">
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* User Info */}
           {isAuthenticated && (
             <div className="p-4 border-b border-border">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 bg-primary/10 rounded-full overflow-hidden">
                   <img
-                    src="/assets/images/no_image.png"
-                    alt="User"
+                    src={user?.avatarUrl || '/assets/images/no_image.png'}
+                    alt={user?.fullName || 'User'}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       e.target.src = '/assets/images/no_image.png';
@@ -171,10 +188,10 @@ const MobileMenu = ({
                 </div>
                 <div className="flex flex-col">
                   <span className="font-medium text-text-primary">
-                    {userRole === 'farmer' ? 'Abebe Kebede' : 'Sarah Johnson'}
+                    {user?.fullName || (currentLanguage === 'am' ? 'ተጠቃሚ' : 'User')}
                   </span>
                   <span className="text-sm text-text-secondary capitalize">
-                    {userRole}
+                    {user?.role || userRole}
                   </span>
                 </div>
               </div>
@@ -182,7 +199,7 @@ const MobileMenu = ({
           )}
 
           {/* Main Navigation */}
-          <div className="flex-1 py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto py-4">
             <div className="px-4 mb-4">
               <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wide">
                 {currentLanguage === 'am' ? 'ዋና ዝርዝር' : 'Main Menu'}
@@ -215,7 +232,7 @@ const MobileMenu = ({
                       </span>
                     </div>
                     {item?.badge && item?.badge > 0 && (
-                      <span className="w-6 h-6 bg-accent text-accent-foreground text-xs font-medium rounded-full flex items-center justify-center">
+                      <span className="h-5 min-w-[20px] rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white flex items-center justify-center">
                         {item?.badge > 99 ? '99+' : item?.badge}
                       </span>
                     )}
@@ -246,7 +263,7 @@ const MobileMenu = ({
                   </div>
 
                   {item?.badge && item?.badge > 0 && (
-                    <span className="w-6 h-6 bg-accent text-accent-foreground text-xs font-medium rounded-full flex items-center justify-center">
+                    <span className="h-5 min-w-[20px] rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white flex items-center justify-center">
                       {item?.badge > 99 ? '99+' : item?.badge}
                     </span>
                   )}
@@ -255,9 +272,11 @@ const MobileMenu = ({
             </div>
           </div>
 
+          </div>
+
           {/* Footer Actions */}
           {isAuthenticated && (
-            <div className="p-4 border-t border-border">
+            <div className="shrink-0 border-t border-border bg-surface p-4">
               <Button
                 variant="ghost"
                 onClick={handleLogout}
@@ -268,7 +287,6 @@ const MobileMenu = ({
               </Button>
             </div>
           )}
-        </div>
       </div>
     </div>
   );

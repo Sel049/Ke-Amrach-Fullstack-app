@@ -133,7 +133,7 @@ const MarketTrendsWidget = ({ currentLanguage = 'en' }) => {
   return (
     <div className="bg-card border border-border rounded-lg p-4 lg:p-6 shadow-warm">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
             <Icon name="TrendingUp" size={20} className="text-primary" />
@@ -157,7 +157,7 @@ const MarketTrendsWidget = ({ currentLanguage = 'en' }) => {
         </Button>
       </div>
       {/* Price Chart */}
-      <div className="h-48 lg:h-64 mb-6">
+      <div className="h-52 min-w-0 mb-6 sm:h-56 lg:h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={marketData}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
@@ -166,11 +166,14 @@ const MarketTrendsWidget = ({ currentLanguage = 'en' }) => {
               tickFormatter={formatTooltipLabel}
               stroke="var(--color-text-secondary)"
               fontSize={12}
+              interval="preserveStartEnd"
+              minTickGap={20}
             />
             <YAxis 
               stroke="var(--color-text-secondary)"
               fontSize={12}
               tickFormatter={(value) => `${value} ETB`}
+              width={48}
             />
             <Tooltip content={<CustomTooltip />} />
             <Line 

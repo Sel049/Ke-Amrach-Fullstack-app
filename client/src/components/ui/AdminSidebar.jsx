@@ -106,7 +106,7 @@ const AdminSidebar = ({ isCollapsed, onToggleCollapse }) => {
   };
 
   return (
-    <div className={`fixed left-0 top-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 transition-all duration-300 z-40 flex flex-col ${
+    <div className={`hidden sm:flex fixed left-0 top-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 transition-all duration-300 z-40 flex-col ${
       isCollapsed ? 'w-16' : 'w-64'
     }`}>
       {/* Toggle Button */}

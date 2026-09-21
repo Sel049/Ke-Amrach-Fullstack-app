@@ -243,14 +243,14 @@ const AdminAnalytics = () => {
         {/* Header */}
         <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-sm border-b border-slate-200 dark:border-slate-700">
           <div className="px-4 mx-auto max-w-7xl lg:px-6 py-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Analytics Dashboard</h1>
                 <p className="mt-2 text-slate-600 dark:text-slate-400">
                   Business intelligence and performance insights
                 </p>
               </div>
-              <div className="flex items-center space-x-4">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                 <select
                   value={timeRange}
                   onChange={(e) => setTimeRange(e.target.value)}
@@ -354,20 +354,20 @@ const AdminAnalytics = () => {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Revenue Trend</h3>
                 <Button variant="ghost" size="sm" iconName="MoreHorizontal" />
               </div>
-              <div className="h-64 flex items-end space-x-1">
+              <div className="h-64 min-w-0 flex items-end gap-1 overflow-x-auto">
                 {isLoading ? (
                   <div className="w-full h-full flex items-center justify-center">
                     <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 ) : analyticsData.revenue.chart.length > 0 ? (
                   analyticsData.revenue.chart.map((item, index) => (
-                    <div key={index} className="flex-1 min-w-0 flex flex-col items-center">
+                    <div key={index} className="min-w-[42px] flex-1 flex flex-col items-center">
                       <div
                         className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t"
                         style={{ height: `${(item.value / chartMax(analyticsData.revenue.chart)) * 200}px` }}
                       ></div>
-                      <span className="text-[10px] text-slate-600 dark:text-slate-400 mt-2 whitespace-nowrap">{item.month}</span>
-                      <span className="text-[10px] font-medium text-slate-900 dark:text-white whitespace-nowrap">
+                      <span className="text-[10px] text-slate-600 dark:text-slate-400 mt-2 text-center break-words">{item.month}</span>
+                      <span className="text-[10px] font-medium text-slate-900 dark:text-white text-center">
                         ETB {(item.value / 1000).toFixed(0)}k
                       </span>
                     </div>
@@ -391,12 +391,12 @@ const AdminAnalytics = () => {
                     const colors = ['bg-amber-500', 'bg-amber-600', 'bg-green-500', 'bg-orange-500', 'bg-red-500'];
                     const color = category.color || colors[index % colors.length];
                     return (
-                      <div key={index} className="flex items-center justify-between">
+                      <div key={index} className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-between">
                         <div className="flex items-center space-x-3">
                           <div className={`w-4 h-4 rounded-full ${color}`}></div>
                           <span className="text-sm font-medium text-slate-900 dark:text-white">{category.name}</span>
                         </div>
-                        <div className="flex items-center space-x-4">
+                        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:space-x-4">
                           <div className="w-24 bg-slate-200 dark:bg-slate-700 rounded-full h-2">
                             <div
                               className={`h-2 rounded-full ${color}`}

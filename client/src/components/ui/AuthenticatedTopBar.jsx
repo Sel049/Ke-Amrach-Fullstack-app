@@ -7,7 +7,7 @@ import { useLanguage } from '../../hooks/useLanguage.jsx';
 import { useCart } from '../../hooks/useCart.jsx';
 import NotificationBell from '../NotificationBell.jsx';
 
-const AuthenticatedTopBar = ({ isCollapsed, userRole }) => {
+const AuthenticatedTopBar = ({ isCollapsed, userRole, onMenuClick }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { language, toggle, setLanguage } = useLanguage();
@@ -44,16 +44,27 @@ const AuthenticatedTopBar = ({ isCollapsed, userRole }) => {
     </div>
   );
 
-  const sidebarOffset = isCollapsed ? 'left-16' : (userRole === 'admin' ? 'left-64' : 'left-72');
+  const sidebarOffset = isCollapsed ? 'left-0 sm:left-16' : (userRole === 'admin' ? 'left-0 lg:left-64' : 'left-0 lg:left-72');
 
   return (
     <div className={`fixed top-0 right-0 z-40 h-14 border-b bg-surface border-border transition-all duration-300 ${sidebarOffset}`}>
       <div className="h-full w-full min-w-0 px-2 sm:px-6 flex items-center justify-between">
-        <div className="flex min-w-0 items-center space-x-2 sm:space-x-3 cursor-pointer pl-0 sm:pl-3" onClick={() => navigate('/app')}>
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+        <div className="flex min-w-0 items-center space-x-2 sm:space-x-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onMenuClick}
+            className="sm:hidden shrink-0"
+            aria-label="Open navigation menu"
+          >
+            <Icon name="Menu" size={20} />
+          </Button>
+          <div className="flex shrink-0 items-center space-x-2 sm:space-x-3 cursor-pointer pl-0 sm:pl-3" onClick={() => navigate('/app')}>
+          <div className="h-8 w-8 shrink-0 rounded-lg bg-primary flex items-center justify-center">
             <Icon name="Sprout" size={18} color="white" />
           </div>
-          <span className="text-sm font-semibold text-primary truncate">Keamrach</span>
+          <span className="hidden text-sm font-semibold text-primary sm:block">Keamrach</span>
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center space-x-1 sm:space-x-3">
@@ -62,7 +73,7 @@ const AuthenticatedTopBar = ({ isCollapsed, userRole }) => {
             <Button variant="ghost" size="icon" onClick={() => navigate('/cart')} className="relative">
               <Icon name="ShoppingCart" size={18} />
               {totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 text-[10px] bg-primary text-white rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center">{totalItems}</span>
+                <span className="absolute -top-1 -right-1 text-[10px] font-semibold bg-rose-500 text-white rounded-full h-5 min-w-[20px] px-1 flex items-center justify-center">{totalItems}</span>
               )}
             </Button>
           )}
@@ -84,7 +95,7 @@ const AuthenticatedTopBar = ({ isCollapsed, userRole }) => {
             </button>
 
             {isUserMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 p-2 border rounded-lg bg-surface border-border shadow-warm">
+              <div className="absolute right-0 z-50 mt-2 w-56 max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-border bg-surface p-2 shadow-warm">
                 <Button variant="ghost" className="justify-start w-full px-3 py-2" onClick={() => { setIsUserMenuOpen(false); navigate('/user-profile-management'); }}>
                   <Icon name="Settings" size={16} className="mr-2" /> Settings
                 </Button>

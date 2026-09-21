@@ -25,10 +25,10 @@ const CartPage = () => {
         ) : (
           <div className="space-y-4">
             {items.map(item => (
-              <div key={item.id} className="flex items-center gap-3 p-3 border border-border rounded-lg bg-white">
-                <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded" />
-                <div className="flex-1">
-                  <div className="font-medium text-text-primary">{language === 'am' ? item.nameAm || item.name : item.name}</div>
+              <div key={item.id} className="grid grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border bg-white p-3 sm:flex">
+                <img src={item.image} alt={item.name} className="h-16 w-16 rounded object-cover" />
+                <div className="min-w-0 sm:flex-1">
+                  <div className="break-words font-medium text-text-primary">{language === 'am' ? item.nameAm || item.name : item.name}</div>
                   <div className="text-sm text-text-secondary">ETB {item.pricePerKg} / kg</div>
                   {item.availableQuantity && (
                     <div className="text-xs text-gray-500">
@@ -36,7 +36,7 @@ const CartPage = () => {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="col-span-2 col-start-2 flex items-center justify-end gap-1 sm:gap-2">
                   <Button 
                     variant="outline" 
                     size="sm" 

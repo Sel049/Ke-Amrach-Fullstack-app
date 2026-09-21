@@ -284,8 +284,8 @@ const PriceChart = ({ currentLanguage = 'en' }) => {
           </h3>
         </div>
         
-        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-          <div className="flex space-x-2">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <div className="chart-scroll-container flex min-w-0 gap-2 overflow-x-auto pb-1">
             {crops?.map((crop) => (
               <Button
                 key={crop?.value}
@@ -299,7 +299,7 @@ const PriceChart = ({ currentLanguage = 'en' }) => {
             ))}
           </div>
           
-          <div className="flex space-x-2">
+          <div className="chart-scroll-container flex min-w-0 gap-2 overflow-x-auto pb-1">
             {timeRanges?.map((range) => (
               <Button
                 key={range?.value}
@@ -322,7 +322,19 @@ const PriceChart = ({ currentLanguage = 'en' }) => {
           {currentLanguage === 'am' ? 'ባለፉት 30 ቀናት' : 'Last 30 days performance'}
         </p>
       </div>
-      <div className="h-96 w-full relative chart-container">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:hidden">
+        <div className="rounded-lg border border-border bg-surface p-2">
+          <div className="text-xs text-text-secondary">{currentLanguage === 'am' ? 'የዋጋ ለውጥ' : 'Price Change'}</div>
+          <div className={`text-sm font-bold ${(currentData?.[currentData.length - 1]?.price - currentData?.[0]?.price) >= 0 ? 'text-success' : 'text-error'}`}>
+            {(currentData?.[currentData.length - 1]?.price - currentData?.[0]?.price) >= 0 ? '+' : ''}{formatPrice(currentData?.[currentData.length - 1]?.price - currentData?.[0]?.price || 0)} ETB
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface p-2">
+          <div className="text-xs text-text-secondary">{currentLanguage === 'am' ? 'አማካይ ዋጋ' : 'Average Price'}</div>
+          <div className="text-sm font-bold text-primary">{formatPrice(currentData?.reduce((sum, item) => sum + item.price, 0) / currentData?.length || 0)} ETB</div>
+        </div>
+      </div>
+      <div className="h-[280px] w-full min-w-0 relative chart-container sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={currentData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
             <defs>
@@ -349,6 +361,8 @@ const PriceChart = ({ currentLanguage = 'en' }) => {
               tickLine={false}
               axisLine={false}
               tickMargin={10}
+              interval="preserveStartEnd"
+              minTickGap={24}
             />
             <YAxis 
               tickFormatter={(value) => `${formatPrice(value)}`}
@@ -357,6 +371,7 @@ const PriceChart = ({ currentLanguage = 'en' }) => {
               tickLine={false}
               axisLine={false}
               tickMargin={10}
+              width={48}
             />
             <Tooltip content={<CustomTooltip />} />
             <Area
@@ -389,7 +404,7 @@ const PriceChart = ({ currentLanguage = 'en' }) => {
         </ResponsiveContainer>
         
         {/* Chart overlay with stats */}
-        <div className="absolute top-4 right-4 bg-surface/90 backdrop-blur-sm rounded-lg p-3 border border-border shadow-warm chart-overlay">
+        <div className="absolute top-4 right-4 hidden bg-surface/90 backdrop-blur-sm rounded-lg p-3 border border-border shadow-warm chart-overlay sm:block">
           <div className="text-xs text-text-secondary mb-1">
             {currentLanguage === 'am' ? 'አማካይ ዋጋ' : 'Average Price'}
           </div>
@@ -399,7 +414,7 @@ const PriceChart = ({ currentLanguage = 'en' }) => {
         </div>
         
         {/* Price change indicator */}
-        <div className="absolute top-4 left-4 bg-surface/90 backdrop-blur-sm rounded-lg p-3 border border-border shadow-warm chart-overlay">
+        <div className="absolute top-4 left-4 hidden bg-surface/90 backdrop-blur-sm rounded-lg p-3 border border-border shadow-warm chart-overlay sm:block">
           <div className="text-xs text-text-secondary mb-1">
             {currentLanguage === 'am' ? 'የዋጋ ለውጥ' : 'Price Change'}
           </div>

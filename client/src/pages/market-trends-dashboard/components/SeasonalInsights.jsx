@@ -306,7 +306,7 @@ const SeasonalInsights = ({ currentLanguage = 'en' }) => {
           </h3>
         </div>
         
-        <div className="flex space-x-2">
+        <div className="chart-scroll-container flex min-w-0 gap-2 overflow-x-auto pb-1">
           {crops?.map((crop) => (
             <Button
               key={crop?.value}
@@ -328,7 +328,18 @@ const SeasonalInsights = ({ currentLanguage = 'en' }) => {
           {currentLanguage === 'am' ? 'ባለፉት 3 አመታት አማካይ' : 'Average over the last 3 years'}
         </p>
       </div>
-      <div className="h-96 w-full mb-6 relative chart-container">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:hidden">
+        <div className="rounded-lg border border-border bg-surface p-2">
+          <div className="text-xs text-text-secondary">{currentLanguage === 'am' ? 'የወቅት ማጠቃለያ' : 'Seasonal Summary'}</div>
+          <div className="text-xs text-text-primary">Peak: {formatPrice(Math.max(...enhancedData?.map(d => d.avgPrice) || [0]))} ETB</div>
+          <div className="text-xs text-text-primary">Low: {formatPrice(Math.min(...enhancedData?.map(d => d.avgPrice) || [0]))} ETB</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface p-2">
+          <div className="text-xs text-text-secondary">{currentLanguage === 'am' ? 'የዋጋ ክልል' : 'Price Range'}</div>
+          <div className="text-sm font-bold text-primary">{formatPrice(Math.min(...enhancedData?.map(d => d.avgPrice) || [0]))} - {formatPrice(Math.max(...enhancedData?.map(d => d.avgPrice) || [0]))} ETB</div>
+        </div>
+      </div>
+      <div className="h-[280px] w-full min-w-0 mb-6 relative chart-container sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={enhancedData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
             <defs>
@@ -358,6 +369,8 @@ const SeasonalInsights = ({ currentLanguage = 'en' }) => {
               tickLine={false}
               axisLine={false}
               tickMargin={10}
+              interval="preserveStartEnd"
+              minTickGap={16}
             />
             <YAxis 
               tickFormatter={(value) => `${formatPrice(value)}`}
@@ -366,6 +379,7 @@ const SeasonalInsights = ({ currentLanguage = 'en' }) => {
               tickLine={false}
               axisLine={false}
               tickMargin={10}
+              width={48}
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar 
@@ -399,7 +413,7 @@ const SeasonalInsights = ({ currentLanguage = 'en' }) => {
         </ResponsiveContainer>
         
         {/* Chart overlay with peak/low indicators */}
-        <div className="absolute top-4 right-4 bg-surface/90 backdrop-blur-sm rounded-lg p-3 border border-border shadow-warm chart-overlay">
+        <div className="absolute top-4 right-4 hidden bg-surface/90 backdrop-blur-sm rounded-lg p-3 border border-border shadow-warm chart-overlay sm:block">
           <div className="text-xs text-text-secondary mb-2">
             {currentLanguage === 'am' ? 'የወቅት ማጠቃለያ' : 'Seasonal Summary'}
           </div>
@@ -420,7 +434,7 @@ const SeasonalInsights = ({ currentLanguage = 'en' }) => {
         </div>
         
         {/* Price range indicator */}
-        <div className="absolute bottom-4 left-4 bg-surface/90 backdrop-blur-sm rounded-lg p-3 border border-border shadow-warm chart-overlay">
+        <div className="absolute bottom-4 left-4 hidden bg-surface/90 backdrop-blur-sm rounded-lg p-3 border border-border shadow-warm chart-overlay sm:block">
           <div className="text-xs text-text-secondary mb-1">
             {currentLanguage === 'am' ? 'የዋጋ ክልል' : 'Price Range'}
           </div>
