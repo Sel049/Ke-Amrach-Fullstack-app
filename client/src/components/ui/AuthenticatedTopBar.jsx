@@ -68,7 +68,7 @@ const AuthenticatedTopBar = ({ isCollapsed, userRole, onMenuClick }) => {
         </div>
 
         <div className="flex shrink-0 items-center space-x-1 sm:space-x-3">
-          <NotificationBell />
+          {role !== 'buyer' && <NotificationBell />}
           {role === 'buyer' && (
             <Button variant="ghost" size="icon" onClick={() => navigate('/cart')} className="relative">
               <Icon name="ShoppingCart" size={18} />
