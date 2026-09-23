@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dashboardService, orderService, favoriteService } from '../../services/apiService';
+import { dashboardService, orderService, favoriteService, listingService } from '../../services/apiService';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import { useLanguage } from '../../hooks/useLanguage.jsx';
@@ -16,6 +16,8 @@ const BuyerDashboard = () => {
   const [currentLanguage, setCurrentLanguage] = useState('en');
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [recentListings, setRecentListings] = useState([]);
+  const [recentListingsLoading, setRecentListingsLoading] = useState(false);
   const { items: cartItems, totalCost: cartTotal } = useCart();
 
   useEffect(() => {
@@ -47,6 +49,42 @@ const BuyerDashboard = () => {
     setCurrentLanguage(newLanguage);
     localStorage.setItem('farmconnect_language', newLanguage);
   };
+
+  // Fetch recent listings for the dashboard
+  useEffect(() => {
+    const fetchRecentListings = async () => {
+      try {
+        setRecentListingsLoading(true);
+        const response = await listingService.getActiveListings();
+        if (response && response.listings && Array.isArray(response.listings)) {
+          const transformed = response.listings.slice(0, 6).map(listing => ({
+            id: listing.id,
+            name: listing.title || listing.name,
+            variety: listing.crop || listing.category || "",
+            price: parseFloat(listing.price_per_unit || listing.pricePerKg || 0),
+            unit: listing.unit || "kg",
+            location: listing.region || listing.location || "",
+            quantity: parseFloat(listing.quantity || listing.availableQuantity || 0),
+            farmer: {
+              name: listing.farmer_name || listing.farmerName || "Farmer",
+              avatar: listing.farmer_avatar || listing.farmerAvatar || "/assets/images/no_image.png",
+              rating: parseFloat(listing.average_rating ?? listing.averageRating ?? listing.farmer?.rating ?? 0),
+              isVerified: String(listing.farmer_verification_status || listing.farmerVerificationStatus || "")?.toLowerCase() === "verified",
+              id: listing.farmer_user_id || listing.farmerUserId
+            },
+            isOrganic: listing.isOrganic || false,
+            image: listing.image || listing.images?.[0]?.url
+          }));
+          setRecentListings(transformed);
+        }
+      } catch (error) {
+        console.error("Failed to fetch recent listings:", error);
+      } finally {
+        setRecentListingsLoading(false);
+      }
+    };
+    fetchRecentListings();
+  }, []);
 
   if (!isAuthenticated) {
     navigate('/authentication-login-register');
@@ -167,6 +205,46 @@ const BuyerDashboard = () => {
           </div>
         </div>
 
+        {/* Recent Listings */}
+        <div className="bg-white rounded-lg p-6 shadow-sm border">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-text-primary">
+              {currentLanguage === 'am' ? 'የበገይ ዝርዝሮች' : 'Recent Listings'}
+            </h2>
+            <button
+              onClick={() => navigate('/browse-listings-buyer-home')}
+              className="text-primary hover:underline text-sm font-medium"
+            >
+              {currentLanguage === 'am' ? 'ሁሉም ይመልከቱ' : 'View All'}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recentListingsLoading && Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-gray-100 rounded-lg animate-pulse h-64"></div>
+            ))}
+            {!recentListingsLoading && recentListings.map((listing) => (
+              <ProduceListingCard
+                key={listing.id}
+                listing={listing}
+                currentLanguage={currentLanguage}
+              />
+            ))}
+            {!recentListingsLoading && recentListings.length === 0 && (
+              <div className="col-span-full text-center py-8">
+                <p className="text-text-secondary mb-4">
+                  {currentLanguage === 'am' ? 'ምንም ዝርዝሮች የሉም' : 'No recent listings available'}
+                </p>
+                <button
+                  onClick={() => navigate('/browse-listings-buyer-home')}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  {currentLanguage === 'am' ? 'ዝርዝሮችን ይመልከቱ' : 'Browse Listings'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        
         {/* Recent Orders and Market Trends stacked vertically */}
         <div className="space-y-6 mb-8">
           <div className="bg-white rounded-lg p-6 shadow-sm border">
@@ -226,34 +304,7 @@ const BuyerDashboard = () => {
           <MarketTrendsWidget currentLanguage={currentLanguage} />
         </div>
 
-        {/* Recommended Listings */}
-        <div className="bg-white rounded-lg p-6 shadow-sm border">
-          <h2 className="text-lg font-semibold text-text-primary mb-4">
-            {currentLanguage === 'am' ? 'የሚመከሩ ዝርዝሮች' : 'Recommended Listings'}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {dashboardData?.recommendations?.slice(0, 6).map((listing) => (
-              <ProduceListingCard
-                key={listing.id}
-                listing={listing}
-                currentLanguage={currentLanguage}
-              />
-            ))}
-            {(!dashboardData?.recommendations || dashboardData.recommendations.length === 0) && (
-              <div className="col-span-full text-center py-8">
-                <p className="text-text-secondary mb-4">
-                  {currentLanguage === 'am' ? 'ምንም የሚመከሩ ዝርዝሮች የሉም' : 'No recommendations available'}
-                </p>
-                <button
-                  onClick={() => navigate('/browse-listings-buyer-home')}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                >
-                  {currentLanguage === 'am' ? 'ዝርዝሮችን ይመልከቱ' : 'Browse Listings'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        
       </div>
     </AuthenticatedLayout>
   );
