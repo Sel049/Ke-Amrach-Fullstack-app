@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
 import Button from '../../../components/ui/Button';
+import FavoriteButton from '../../../components/FavoriteButton';
 
 const ProduceListingCard = ({ listing, currentLanguage = 'en' }) => {
   const navigate = useNavigate();
@@ -30,9 +31,12 @@ const ProduceListingCard = ({ listing, currentLanguage = 'en' }) => {
             {currentLanguage === 'en' ? 'Organic' : 'ኦርጋኒክ'}
           </div>
         )}
-        <button className="absolute top-2 right-2 p-2 bg-white/80 rounded-full hover:bg-white">
-          <Icon name="Heart" className="w-4 h-4" />
-        </button>
+        <div className="absolute top-3 right-3">
+          <FavoriteButton
+            listingId={listing?.id}
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-smooth bg-white/90 text-text-secondary hover:bg-white hover:text-accent"
+          />
+        </div>
       </div>
       
       <div className="p-4">
