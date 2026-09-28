@@ -11,6 +11,7 @@
     "setup-db": "node setup-database.js",
     "db:bootstrap": "node scripts/apply-schema-and-admin.js",
     "db:admin-settings": "node scripts/apply-admin-settings-schema.js",
+    "db:payments": "node scripts/create-payments-table.js",
     "lint": "echo \"No linter configured\"",
     "lint:fix": "echo \"No linter configured\""
   },

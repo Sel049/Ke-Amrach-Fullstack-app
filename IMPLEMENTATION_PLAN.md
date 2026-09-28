@@ -21,10 +21,65 @@
 | 1 | Admin Analytics real from `/dashboard/admin/analytics` | ✅ DONE |
 | 2 | Admin Settings real via new `/api/settings` + enforcement + frontend gates | ✅ DONE |
 | 3 | Buyer/Farmer market trends real (fix `price_trends.woreda`) | TODO |
-| 4 | Payment (Chapa demo) + fix IDOR on payment routes | TODO — discuss first |
+| 4 | Payment (Chapa demo) + fix IDOR on payment routes | 🔄 IN PROGRESS — Phase 4A (DB) DONE |
 | 5 | Order stats, security section, market-trends dashboard, browse fallback | TODO |
 
 Focus: **Phases 0+1+2 (admin side real first)**, then client-side phases after.
+
+## 2a. Phase 4 Sub-Stages (Chapa Payment Integration)
+
+| Sub-Stage | Task | Status |
+|-----------|------|--------|
+| **4A — Database** | Payments table + migration + schema | ✅ DONE |
+| **4B — Backend Core** | chapaService.js, chapaController.js, routes, bug fixes | ❌ NOT STARTED |
+| **4C — Frontend Core** | OrderSuccessModal, PaymentVerifyPage, apiService updates | ❌ NOT STARTED |
+| **4D — Integration** | BuyerPaymentPage integration, Routes, .env config | ❌ NOT STARTED |
+| **4E — Verification** | Manual + automated testing | ❌ NOT STARTED |
+
+### Phase 4A — Database (DONE)
+
+**Completed files:**
+- `server/scripts/create-payments-table.js` — Migration script for `payments` table (uses ES module imports, `pool.getConnection()` pattern)
+- `server/src/sql/schema.sql` — `payments` table DDL appended (lines 379–399)
+- `server/package.json` — `db:payments` npm script added
+- `server/src/sql/schema.sql` — `payments` table includes: `id`, `user_id`, `order_id`, `amount`, `currency`, `status`, `payment_method`, `transaction_id`, `chapa_reference`, `payment_url`, `raw_response`, `created_at`, `updated_at` with indexes and FKs
+
+**⚠️ Still needed for DB:**
+- Add payments table `CREATE TABLE IF NOT EXISTS` to `server/src/index.js` boot block (lines 319–380 area, after payouts table)
+- The `server/.env` has `DB_NAME=kegeberew_db` but schema.sql uses `ethio_farmers_market` — verify which DB is active
+
+### Phase 4B — Backend Core (NOT STARTED)
+
+**Files to create:**
+- `server/src/services/chapaService.js` — `initializeTransaction()`, `verifyTransaction()`, sandbox fallback
+- `server/src/controllers/chapaController.js` — `initializeChapaPayment()`, `verifyChapaPayment()`, `handleChapaWebhook()`
+- `server/src/routes/chapaRoutes.js` — `/chapa/initialize`, `/chapa/verify/:txRef`, `/chapa/webhook`
+
+**Files to modify:**
+- `server/src/controllers/orderController.js` — **Bug fix**: Line 78 `item.listingId` should be `listingId` inside `for (const [listingId, totalRequested] of consolidatedMap.entries())` loop
+- `server/src/controllers/orderController.js` — **Leak fix**: Wrap `pool.getConnection()` in `try { ... } finally { connection.release(); }`
+- `server/src/routes/paymentRoutes.js` — Mount `/chapa/initialize` (authGuard), `/chapa/verify/:txRef` (authGuard), `/chapa/webhook` (public)
+- `server/.env` — Add `CHAPA_SECRET_KEY`, `CHAPA_PUBLIC_KEY`, `CHAPA_WEBHOOK_SECRET`; Add `http://localhost:5173` to `ALLOWED_ORIGINS`
+- `server/env.example` — Add same Chapa env vars
+
+### Phase 4C — Frontend Core (NOT STARTED)
+
+**Files to create:**
+- `client/src/components/payment/OrderSuccessModal.jsx` — Modal dialog with animated green checkmark, bilingual headline, order details, action buttons ("View My Orders", "Continue Shopping", Close)
+- `client/src/pages/payments/PaymentVerifyPage.jsx` — Verifying spinner, calls `chapaService.verifyPayment(txRef)`, clears cart, opens `OrderSuccessModal`
+
+**Files to modify:**
+- `client/src/services/apiService.js` — Add `chapaService` object with `initializePayment(payload)` and `verifyPayment(txRef)` methods
+- `client/src/Routes.jsx` — Add route `/payments/verify` → `<PaymentVerifyPage />`
+
+### Phase 4D — Integration (NOT STARTED)
+
+**Files to modify:**
+- `client/src/pages/payments/BuyerPaymentPage.jsx` — Replace `alert()`/`console.log` with `<OrderSuccessModal>`, add Chapa as primary online payment with Telebirr/CBE/Awash/Debit-Card badges, add Cash on Delivery option, smooth loader on Chapa redirect
+- `client/src/components/payment/PaymentMethods.jsx` — Add Chapa-specific option badges (already has `chapa` in mobile providers list)
+- `client/src/pages/admin-settings/index.jsx` — Replace "coming soon" placeholder with actual Chapa configuration UI or remove the placeholder text
+
+### Phase 4E — Verification (NOT STARTED)
 
 ## 3. Phase 0 — DB foundation (DONE)
 
@@ -88,7 +143,12 @@ KPI `total`s are lifetime (revenue = SUM completed orders; users/orders = COUNT;
 - [x] Phase 2 backend: settings controller/routes + enforcement.
 - [x] Phase 2 frontend: admin-settings wired to API + public-settings provider + feature gates.
 - [ ] Phase 3: market trends (fix `price_trends.woreda`), buyer/farmer pages.
-- [ ] Phase 4: Chapa demo payment — **discuss with user first**.
+- [x] Phase 4A: Database — payments table + migration script + schema.sql appended + `db:payments` npm script.
+- [ ] Phase 4B: Backend — chapaService.js, chapaController.js, chapa routes, orderController bug+leak fixes.
+- [ ] Phase 4C: Frontend — OrderSuccessModal.jsx, PaymentVerifyPage.jsx, apiService chapaService.
+- [ ] Phase 4D: Integration — BuyerPaymentPage, Routes.jsx, .env, admin-settings update.
+- [ ] Phase 4E: Verification — manual + automated testing.
+- [ ] Phase 5: order stats, security section, market-trends dashboard, browse fallback.
 - [ ] Phase 5: order stats, security section, market-trends dashboard, browse fallback.
 
 ## 8. Handoff footsteps (for the next model / developer)
@@ -133,8 +193,53 @@ cd server && node --check src/index.js && node --check src/controllers/settingsC
 ```
 
 ### What's next (start here)
+- **Phase 4B — Backend Core** (start here): Create `server/src/services/chapaService.js`, `server/src/controllers/chapaController.js`, `server/src/routes/chapaRoutes.js`. Fix `orderController.js` bug (line 78 `item.listingId` → `listingId`) and connection leak. Mount `/chapa/` routes in `paymentRoutes.js`. Add env vars to `.env` and `env.example`.
 - **Phase 3** — market trends. Known bug: `price_trends` has no `woreda` column but `marketTrendsController` filters on it. Fix the query (or add the column) and wire buyer/farmer market-trend pages to real data.
-- **Phase 4** — payments. **STOP and talk to the user first.** Plan is Chapa demo/sandbox only (free tier). Also fix IDOR: payment routes accept `:userId` without checking `req.user`, and `payment_*` tables don't exist yet.
+- **Phase 4C–4E** — Frontend core, integration, and verification (see §2a sub-stages).
+
+### Verification status of this session
+- All edited server files pass `node --check`.
+- All edited client `.jsx/.js` files pass `esbuild` transform (syntax) check.
+- **Live end-to-end verified** (server started, real DB):
+  - `GET /health` → 200
+  - `GET /api/settings/public` → returns `maintenanceMode` + `features` (no auth)
+  - `GET /api/settings` (admin dev-token) → 200, full settings
+  - `PUT /api/settings` (admin) → 200, writes persist + activity log
+  - Maintenance ON: non-admin → **503**; admin → **200** (bypass); public + health → **200**
+  - Reviews OFF → `POST /api/reviews` → **403** "Reviews are currently disabled"
+  - Registration OFF → `POST /api/auth/register` → **403** "Registration is currently disabled" (gate runs before field validation)
+  - All settings restored to seeded defaults at end of session.
+
+### Phase 4 — Current State Summary
+
+**Stage Reached: 4A (Database) ✅ → 4B (Backend) 🔜**
+
+The following files **already exist** and form the foundation:
+- `server/scripts/create-payments-table.js` — Migration script ✅
+- `server/src/sql/schema.sql` — `payments` table DDL appended ✅
+- `server/package.json` — `db:payments` script ✅
+- `server/src/sql/schema.sql` — `payments` table exists (lines 379–399) ✅
+- `client/src/components/payment/PaymentMethods.jsx` — Has `chapa` in mobile providers ✅
+- `client/src/pages/admin-settings/index.jsx` — Has "Chapa planned" placeholder text ⚠️
+
+The following files **still need to be created/modified** (the main work ahead):
+
+| File | Action |
+|------|--------|
+| `server/src/services/chapaService.js` | 🆕 CREATE |
+| `server/src/controllers/chapaController.js` | 🆕 CREATE |
+| `server/src/routes/chapaRoutes.js` | 🆕 CREATE |
+| `server/src/controllers/orderController.js` | 🔧 FIX bug (line 78) + leak |
+| `server/src/routes/paymentRoutes.js` | 🔧 ADD `/chapa/` routes |
+| `server/src/index.js` | 🔧 ADD payments table to boot block |
+| `server/.env` | 🔧 ADD Chapa env vars + localhost:5173 |
+| `server/env.example` | 🔧 ADD Chapa env vars |
+| `client/src/components/payment/OrderSuccessModal.jsx` | 🆕 CREATE |
+| `client/src/pages/payments/PaymentVerifyPage.jsx` | 🆕 CREATE |
+| `client/src/services/apiService.js` | 🔧 ADD `chapaService` |
+| `client/src/Routes.jsx` | 🔧 ADD `/payments/verify` route |
+| `client/src/pages/payments/BuyerPaymentPage.jsx` | 🔧 REPLACE alert() with OrderSuccessModal |
+| `client/src/pages/admin-settings/index.jsx` | 🔧 UPDATE placeholder text |
 
 ### Verification status of this session
 - All edited server files pass `node --check`.
