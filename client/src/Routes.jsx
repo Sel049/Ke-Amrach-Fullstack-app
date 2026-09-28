@@ -27,6 +27,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth.jsx";
 import CartPage from './pages/cart';
 import PaymentsPage from './pages/payments';
+import PaymentVerifyPage from './pages/payments/PaymentVerifyPage.jsx';
 import HelpPage from './pages/help';
 import ResetPasswordPage from './pages/authentication-login-register/components/ResetPasswordPage';
 import AdminDashboard from './pages/admin-dashboard';
@@ -172,6 +173,11 @@ const Routes = () => {
         <Route path="/payments" element={
           <ProtectedRoute>
             <PaymentsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/payments/verify" element={
+          <ProtectedRoute requiredRole="buyer">
+            <PaymentVerifyPage />
           </ProtectedRoute>
         } />
 

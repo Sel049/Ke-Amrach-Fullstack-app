@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import AuthenticatedLayout from '../../components/ui/AuthenticatedLayout.jsx';
 import Button from '../../components/ui/Button.jsx';
 import Icon from '../../components/AppIcon.jsx';
-import { orderService } from '../../services/apiService.js';
+import OrderSuccessModal from '../../components/payment/OrderSuccessModal.jsx';
+import { orderService, chapaService } from '../../services/apiService.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useCart } from '../../hooks/useCart.jsx';
 import { useLanguage } from '../../hooks/useLanguage.jsx';
@@ -28,6 +29,10 @@ const BuyerPaymentPage = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
+
+  // Order success modal state
+  const [successOrder, setSuccessOrder] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     const savedLanguage = localStorage.getItem('farmconnect_language') || 'en';
@@ -97,14 +102,38 @@ const BuyerPaymentPage = () => {
       setProcessingPayment(true);
       setError('');
 
-      // Create order data
+      const orderItems = cartItems.map(item => ({
+        listingId: item.id,
+        quantity: item.quantity,
+        pricePerKg: item.pricePerKg,
+        totalPrice: item.pricePerKg * item.quantity
+      }));
+
+      // --- Chapa (online checkout) -------------------------------
+      // Creates the order plus a pending payment row on the server and
+      // returns a hosted checkout URL. The browser is handed off to Chapa;
+      // /payments/verify finalises the order once Chapa redirects back.
+      if (selectedPaymentMethod === 'chapa') {
+        const result = await chapaService.initializePayment({
+          items: orderItems,
+          totalPrice: totalCost,
+          deliveryAddress,
+          deliveryNotes,
+          paymentMethod: 'chapa',
+        });
+
+        if (!result?.success || !result?.checkoutUrl) {
+          throw new Error(result?.error || 'Could not start the Chapa checkout. Please try again.');
+        }
+
+        // The cart is cleared on /payments/verify once payment succeeds
+        window.location.href = result.checkoutUrl;
+        return;
+      }
+
+      // --- Cash on delivery / other manual methods ---------------
       const orderData = {
-        items: cartItems.map(item => ({
-          listingId: item.id,
-          quantity: item.quantity,
-          pricePerKg: item.pricePerKg,
-          totalPrice: item.pricePerKg * item.quantity
-        })),
+        items: orderItems,
         totalPrice: totalCost,
         deliveryAddress,
         deliveryNotes,
@@ -112,21 +141,26 @@ const BuyerPaymentPage = () => {
         paymentData
       };
 
-      // Create the order
-      const order = await orderService.createOrder(orderData);
-      
-      // Clear cart
+      const res = await orderService.createOrder(orderData);
+
       clearCart();
-      
-      // Show success message
-      alert(currentLanguage === 'am' ? 'ትዕዛዝ በተሳካ ሁኔታ ተፈጥሯል!' : 'Order placed successfully!');
-      
-      // Navigate to order confirmation or dashboard
-      navigate('/dashboard-buyer-home');
-      
+      setShowPaymentForm(false);
+      setSuccessOrder({
+        id: res?.order?.id ?? res?.orderId,
+        total: totalCost,
+        currency: 'ETB',
+        paymentMethod: selectedPaymentMethod,
+        itemCount: orderItems.length,
+        farmerName: res?.order?.farmerName,
+      });
+      setShowSuccessModal(true);
+
     } catch (error) {
-      console.error('Payment error:', error);
-      setError(error.response?.data?.error || 'Payment failed. Please try again.');
+      setError(
+        error?.response?.data?.error
+        || error?.message
+        || 'Payment failed. Please try again.'
+      );
     } finally {
       setProcessingPayment(false);
     }
@@ -134,22 +168,14 @@ const BuyerPaymentPage = () => {
 
   const paymentMethods = [
     {
-      id: 'card',
-      name: currentLanguage === 'am' ? 'የክሬዲት ካርድ' : 'Credit/Debit Card',
-      icon: 'CreditCard',
-      description: currentLanguage === 'am' ? 'Visa, Mastercard, ወይም American Express' : 'Visa, Mastercard, or American Express'
-    },
-    {
-      id: 'mobile_money',
-      name: currentLanguage === 'am' ? 'ሞባይል ገንዘብ' : 'Mobile Money',
-      icon: 'Smartphone',
-      description: currentLanguage === 'am' ? 'CBE Birr, M-Pesa, ወይም Telebirr' : 'CBE Birr, M-Pesa, or Telebirr'
-    },
-    {
-      id: 'bank_transfer',
-      name: currentLanguage === 'am' ? 'የባንክ ማስተላለፍ' : 'Bank Transfer',
-      icon: 'Building2',
-      description: currentLanguage === 'am' ? 'ቀጥታ የባንክ ማስተላለፍ' : 'Direct bank transfer'
+      id: 'chapa',
+      name: currentLanguage === 'am' ? 'ቻፓ (የመስመር ላይ)' : 'Chapa (Online)',
+      icon: 'ShieldCheck',
+      description: currentLanguage === 'am'
+        ? 'Telebirr, CBE Birr, Awash, ዴቢት ካርድ'
+        : 'Telebirr, CBE Birr, Awash, Debit Card',
+      badges: ['Telebirr', 'CBE', 'Awash', 'Debit Card'],
+      recommended: true,
     },
     {
       id: 'cash_on_delivery',
@@ -288,17 +314,36 @@ const BuyerPaymentPage = () => {
                         }`}
                         onClick={() => handlePaymentMethodChange(method.id)}
                       >
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        <div className="flex items-start space-x-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                             selectedPaymentMethod === method.id ? 'bg-primary/10' : 'bg-gray-100'
                           }`}>
                             <Icon name={method.icon} size={20} className={
                               selectedPaymentMethod === method.id ? 'text-primary' : 'text-gray-600'
                             } />
                           </div>
-                          <div>
-                            <h4 className="font-medium text-text-primary">{method.name}</h4>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-medium text-text-primary">{method.name}</h4>
+                              {method.recommended && (
+                                <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-success/10 text-success font-semibold">
+                                  {currentLanguage === 'am' ? 'የሚመከር' : 'Recommended'}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-sm text-text-secondary">{method.description}</p>
+                            {Array.isArray(method.badges) && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {method.badges.map((badge) => (
+                                  <span
+                                    key={badge}
+                                    className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-border"
+                                  >
+                                    {badge}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -306,88 +351,44 @@ const BuyerPaymentPage = () => {
                   </div>
                 </div>
 
-                {/* Payment Details Form */}
-                {selectedPaymentMethod && selectedPaymentMethod !== 'cash_on_delivery' && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4">
-                      {currentLanguage === 'am' ? 'የክፍያ ዝርዝሮች' : 'Payment Details'}
-                    </h3>
-                    <div className="space-y-4">
-                      {selectedPaymentMethod === 'card' && (
-                        <>
-                          <div>
-                            <label className="block text-sm font-medium text-text-primary mb-2">
-                              {currentLanguage === 'am' ? 'ካርድ ቁጥር' : 'Card Number'}
-                            </label>
-                            <input
-                              type="text"
-                              value={paymentData.cardNumber || ''}
-                              onChange={(e) => handlePaymentDataChange('cardNumber', e.target.value)}
-                              className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                              placeholder="1234 5678 9012 3456"
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-text-primary mb-2">
-                                {currentLanguage === 'am' ? 'የሚያልቅበት ቀን' : 'Expiry Date'}
-                              </label>
-                              <input
-                                type="text"
-                                value={paymentData.expiryDate || ''}
-                                onChange={(e) => handlePaymentDataChange('expiryDate', e.target.value)}
-                                className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                                placeholder="MM/YY"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-text-primary mb-2">
-                                CVV
-                              </label>
-                              <input
-                                type="text"
-                                value={paymentData.cvv || ''}
-                                onChange={(e) => handlePaymentDataChange('cvv', e.target.value)}
-                                className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                                placeholder="123"
-                              />
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      {selectedPaymentMethod === 'mobile_money' && (
-                        <div>
-                          <label className="block text-sm font-medium text-text-primary mb-2">
-                            {currentLanguage === 'am' ? 'ሞባይል ቁጥር' : 'Mobile Number'}
-                          </label>
-                          <input
-                            type="text"
-                            value={paymentData.mobileNumber || ''}
-                            onChange={(e) => handlePaymentDataChange('mobileNumber', e.target.value)}
-                            className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                            placeholder="+251 9XX XXX XXX"
-                          />
+                {/* Chapa redirect notice */}
+                {selectedPaymentMethod === 'chapa' && (
+                  <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <Icon name="ShieldCheck" size={20} className="text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-text-primary mb-1">
+                          {currentLanguage === 'am' ? 'ደህንነቱ የተጠበቀ የChapa ክፍያ' : 'Secure Chapa Checkout'}
+                        </p>
+                        <p className="text-sm text-text-secondary mb-3">
+                          {currentLanguage === 'am'
+                            ? '“ትዕዛዝ ይፈጽሙ” ሲጫኑ ወደ Chapa የክፍያ ገጽ ይሄዳሉ። በTelebirr፣ CBE Birr፣ Awash ወይም በዴቢት ካርድ ይክፈሉ።'
+                            : 'Clicking “Place Order” takes you to Chapa’s secure payment page, where you can pay with Telebirr, CBE Birr, Awash or a debit card.'}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {['Telebirr', 'CBE Birr', 'Awash', 'Debit Card'].map((badge) => (
+                            <span
+                              key={badge}
+                              className="text-xs px-2 py-1 rounded-full bg-white border border-primary/20 text-text-secondary"
+                            >
+                              {badge}
+                            </span>
+                          ))}
                         </div>
-                      )}
-                      {selectedPaymentMethod === 'bank_transfer' && (
-                        <div>
-                          <label className="block text-sm font-medium text-text-primary mb-2">
-                            {currentLanguage === 'am' ? 'የባንክ ስም' : 'Bank Name'}
-                          </label>
-                          <select
-                            value={paymentData.bankName || ''}
-                            onChange={(e) => handlePaymentDataChange('bankName', e.target.value)}
-                            className="w-full p-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                          >
-                            <option value="">{currentLanguage === 'am' ? 'ባንክ ይምረጡ' : 'Select Bank'}</option>
-                            <option value="cbe">Commercial Bank of Ethiopia</option>
-                            <option value="awash">Awash Bank</option>
-                            <option value="dashen">Dashen Bank</option>
-                            <option value="abyssinia">Abyssinia Bank</option>
-                          </select>
-                        </div>
-                      )}
+                      </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Cash on delivery notice */}
+                {selectedPaymentMethod === 'cash_on_delivery' && (
+                  <div className="mb-6 p-4 bg-warning/5 border border-warning/20 rounded-lg flex items-start space-x-3">
+                    <Icon name="Banknote" size={20} className="text-warning mt-0.5 shrink-0" />
+                    <p className="text-sm text-text-secondary">
+                      {currentLanguage === 'am'
+                        ? 'ገንዘቡን ምርቱ ሲደርስ ለገበሬው ይክፈላሉ።'
+                        : 'You will pay the farmer in cash when your order is delivered.'}
+                    </p>
                   </div>
                 )}
 
@@ -509,6 +510,13 @@ const BuyerPaymentPage = () => {
           )}
         </div>
       </div>
+
+      <OrderSuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        order={successOrder || {}}
+        language={currentLanguage}
+      />
     </AuthenticatedLayout>
   );
 };

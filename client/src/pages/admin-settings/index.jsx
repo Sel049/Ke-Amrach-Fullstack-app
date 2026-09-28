@@ -357,10 +357,22 @@ const AdminSettings = () => {
 
   const renderPaymentSettings = () => (
     <div className="space-y-6">
-      {/* Coming Soon banner for entire payment category */}
+      {/* Chapa is the live gateway; the legacy toggles below stay placeholders */}
+      <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 dark:border-emerald-800 dark:bg-emerald-900/10">
+        <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium mb-1">
+          ✅ Chapa (Ethiopian payment provider) is integrated and active.
+        </p>
+        <p className="text-xs text-emerald-700 dark:text-emerald-400">
+          Buyers can pay online through Chapa (Telebirr, CBE Birr, Awash, debit card) or choose Cash on Delivery
+          at checkout. Credentials are configured server-side via <code>CHAPA_SECRET_KEY</code>,{' '}
+          <code>CHAPA_PUBLIC_KEY</code> and <code>CHAPA_WEBHOOK_SECRET</code>. Webhook endpoint:{' '}
+          <code>/api/payments/chapa/webhook</code>. When the secret key is empty (or starts with
+          <code> CHASECK_TEST-</code>) the server runs in sandbox mode.
+        </p>
+      </div>
       <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-2.5 dark:border-amber-800 dark:bg-amber-900/10">
         <p className="text-xs text-amber-700 dark:text-amber-300">
-          💳 Payment settings are saved but not yet integrated with any payment gateway. Chapa (Ethiopian payment provider) integration is planned. This feature is coming soon.
+          ⚙️ The gateway toggles below are stored but not enforced — only Chapa is wired to real payment flow.
         </p>
       </div>
       <div className="space-y-4">

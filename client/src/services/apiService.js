@@ -645,6 +645,32 @@ export const settingsService = {
     return response.data;
   }
 };
+// Chapa Payment Service (Ethiopian payment gateway)
+export const chapaService = {
+  /**
+   * Start a Chapa checkout.
+   * @param {Object} payload { items, totalPrice, deliveryAddress, deliveryNotes, paymentMethod }
+   * @returns {Object} { success, checkoutUrl, txRef, orderId, paymentId, amount, currency, sandbox }
+   */
+  initializePayment: async (payload) => {
+    const response = await apiClient.post('/payments/chapa/initialize', payload);
+    return response.data;
+  },
+
+  /**
+   * Verify a Chapa transaction by its tx_ref.
+   * @param {string} txRef   the CHAPA-* reference returned by initializePayment
+   * @param {string|number} orderId optional order id used as a fallback lookup
+   */
+  verifyPayment: async (txRef, orderId) => {
+    const response = await apiClient.get(`/payments/chapa/verify/${txRef}`, {
+      params: orderId ? { order_id: orderId } : undefined,
+    });
+    return response.data;
+  }
+};
+
+// Error handling utility
 
 // Error handling utility
 export const handleApiError = (error) => {
