@@ -74,16 +74,14 @@ export const createOrder = async (req, res) => {
 
       if (listingRows.length === 0) {
         await connection.rollback();
-        connection.release();
-          return res.status(404).json({ error: `Listing ${item.listingId} not found or inactive` });
+        return res.status(404).json({ error: `Listing ${listingId} not found or inactive` });
       }
 
       const listing = listingRows[0];
 
-        if (Number(listing.availableQuantity) < Number(totalRequested)) {
+      if (Number(listing.availableQuantity) < Number(totalRequested)) {
         await connection.rollback();
-        connection.release();
-          return res.status(400).json({ error: `Insufficient quantity available for listing ${listingId}` });
+        return res.status(400).json({ error: `Insufficient quantity available for listing ${listingId}` });
       }
 
         // Calculate line total
@@ -217,8 +215,6 @@ export const createOrder = async (req, res) => {
         [orderId]
       );
 
-      connection.release();
-
       // Notify farmer about new order
       try {
         await createOrderNotification(orderId, 'order_created', primaryFarmerId);
@@ -239,6 +235,8 @@ export const createOrder = async (req, res) => {
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ error: 'Failed to create order' });
+  } finally {
+    try { connection.release(); } catch (_) {}
   }
 };
 
@@ -369,7 +367,6 @@ export const getOrderById = async (req, res) => {
     `;
     const [authRows] = await connection.execute(authQuery, [id, userFirebaseUid, userFirebaseUid]);
     if (authRows.length === 0) {
-      connection.release();
       return res.status(404).json({ error: 'Order not found' });
     }
 
@@ -406,15 +403,6 @@ export const getOrderById = async (req, res) => {
       [id]
     );
 
-    connection.release();
-
-    if (orderRows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    const base = orderRows[0];
-    const header = headerRows[0] || {};
-
     res.json({
       id: base.id,
       status: base.status,
@@ -430,6 +418,8 @@ export const getOrderById = async (req, res) => {
   } catch (error) {
     console.error('Error fetching order by ID:', error);
     res.status(500).json({ error: 'Failed to fetch order' });
+  } finally {
+    try { connection.release(); } catch (_) {}
   }
 };
 

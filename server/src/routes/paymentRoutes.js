@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import * as paymentController from '../controllers/paymentController.js';
+import chapaRoutes from '../routes/chapaRoutes.js';
 import { authGuard } from '../middleware/auth.js';
 
 const router = Router();
 
-// All payment routes require auth
+// Chapa routes (webhook is public, initialize/verify use their own authGuard)
+router.use('/chapa', chapaRoutes);
+
+// All other payment routes require auth
 router.use(authGuard);
 
 // Payment method routes
