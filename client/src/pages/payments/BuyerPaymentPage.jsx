@@ -44,14 +44,14 @@ const BuyerPaymentPage = () => {
   }, [language]);
 
   useEffect(() => { 
-    load(true); 
+    load(1);
   }, []);
 
-  const load = async (reset = false) => {
+  const load = async (requestedPage = 1) => {
     try {
       setLoading(true);
       // Use buyer orders and derive payments (completed orders as paid)
-      const res = await orderService.getBuyerOrders({ status: 'completed', page: reset ? 1 : page, limit: 10 });
+      const res = await orderService.getBuyerOrders({ status: 'completed', page: requestedPage, limit: 10 });
       const items = Array.isArray(res) ? res : (res.orders || []);
       const mapped = items.map(o => ({
         id: o.id,
@@ -62,9 +62,18 @@ const BuyerPaymentPage = () => {
         method: o.paymentMethod || 'Cash',
         status: 'paid'
       }));
-      setPayments(reset ? mapped : [...payments, ...mapped]);
+      setPayments(previous => {
+        if (requestedPage === 1) return mapped;
+
+        const seenIds = new Set(previous.map(payment => payment.id));
+        return [...previous, ...mapped.filter(payment => {
+          if (seenIds.has(payment.id)) return false;
+          seenIds.add(payment.id);
+          return true;
+        })];
+      });
       setHasMore(res?.pagination?.hasNext || false);
-      if (reset) setPage(1);
+      setPage(requestedPage);
       setError('');
     } catch (e) {
       setError(e.response?.data?.error || 'Failed to load payments');
@@ -156,11 +165,13 @@ const BuyerPaymentPage = () => {
       setShowSuccessModal(true);
 
     } catch (error) {
-      setError(
-        error?.response?.data?.error
+      const errorMessage = error?.response?.data?.error
         || error?.message
-        || 'Payment failed. Please try again.'
-      );
+        || 'Payment failed. Please try again.';
+      const serverDetails = error?.response?.data?.details;
+      setError(import.meta.env.DEV && serverDetails
+        ? `${errorMessage}: ${serverDetails}`
+        : errorMessage);
     } finally {
       setProcessingPayment(false);
     }
@@ -192,7 +203,7 @@ const BuyerPaymentPage = () => {
           <h1 className="text-2xl font-bold text-text-primary">
             {currentLanguage === 'am' ? 'ክፍያ እና ትዕዛዝ' : 'Payment & Orders'}
           </h1>
-          <Button variant="outline" size="sm" iconName="RefreshCw" onClick={() => load(true)}>
+          <Button variant="outline" size="sm" iconName="RefreshCw" onClick={() => load(1)}>
             {currentLanguage === 'am' ? 'አድስ' : 'Refresh'}
           </Button>
         </div>
@@ -256,7 +267,7 @@ const BuyerPaymentPage = () => {
                   <h2 className="text-xl font-bold text-text-primary">
                     {currentLanguage === 'am' ? 'ክፍያ ይፈጽሙ' : 'Complete Payment'}
                   </h2>
-                  <Button 
+                  <Button
                     variant="ghost" 
                     size="sm" 
                     onClick={() => setShowPaymentForm(false)}
@@ -503,7 +514,7 @@ const BuyerPaymentPage = () => {
 
           {hasMore && (
             <div className="text-center py-4 border-t">
-              <Button variant="outline" onClick={() => { setPage(p => p + 1); load(false); }}>
+                <Button variant="outline" onClick={() => load(page + 1)}>
                 {currentLanguage === 'am' ? 'ተጨማሪ ጫን' : 'Load More'}
               </Button>
             </div>

@@ -44,7 +44,7 @@ export class ChapaService {
     };
 
     try {
-      const response = await fetch(`${this.baseUrl}/checkout`, {
+      const response = await fetch(`${this.baseUrl}/transaction/initialize`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,7 +81,7 @@ export class ChapaService {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/verify/${txRef}`, {
+      const response = await fetch(`${this.baseUrl}/transaction/verify/${encodeURIComponent(txRef)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -96,11 +96,12 @@ export class ChapaService {
 
       const data = await response.json();
       const status = data.data?.status || 'unknown';
+      const isSuccessful = ['success', 'completed'].includes(String(status).toLowerCase());
       const chapaReference = data.data?.reference || data.data?.chapa_reference || txRef;
 
       return {
-        success: status === 'completed',
-        verified: status === 'completed',
+        success: isSuccessful,
+        verified: isSuccessful,
         txRef,
         chapaReference,
         amount: data.data?.amount || 0,
