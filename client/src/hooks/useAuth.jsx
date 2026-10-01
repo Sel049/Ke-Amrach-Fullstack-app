@@ -26,6 +26,11 @@ export const AuthProvider = ({ children }) => {
       const storedAuth = localStorage.getItem('isAuthenticated');
       const storedUser = localStorage.getItem('userData');
 
+      if (!import.meta.env.DEV && storedToken?.startsWith('dev-token-')) {
+        clearAuth();
+        return;
+      }
+
       if (storedToken && storedAuth === 'true') {
         // Immediately hydrate session from storage to avoid flicker/redirects
         setToken(storedToken);
@@ -62,9 +67,30 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('userRole');
   };
 
+  const completeFirebaseSignIn = async (firebaseUser) => {
+    const firebaseToken = await firebaseUser.getIdToken(true);
+    localStorage.setItem('authToken', firebaseToken);
+
+    await authService.syncUser();
+    const profile = await userService.getMe();
+    if (!profile?.role) {
+      throw new Error('Your account profile is missing a role. Contact support.');
+    }
+
+    setUser(profile);
+    setToken(firebaseToken);
+    setIsAuthenticated(true);
+    setError(null);
+    localStorage.setItem('isAuthenticated', 'true');
+    localStorage.setItem('userData', JSON.stringify(profile));
+    localStorage.setItem('userRole', profile.role);
+
+    return profile;
+  };
+
   const login = async (credentials) => {
     // Check if this is a dev mode login
-    if (credentials.devMode) {
+    if (import.meta.env.DEV && credentials.devMode) {
       const devUserData = JSON.parse(localStorage.getItem('devUserData') || '{}');
       console.log('Dev mode login - user data:', devUserData);
       setUser(devUserData);
@@ -92,45 +118,41 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      const response = await authService.devLogin(credentials);
+      if (localStorage.getItem('authToken')?.startsWith('dev-token-')) {
+        clearAuth();
+      }
 
-      if (response.user && response.devToken) {
+      const [{ auth }, { signInWithEmailAndPassword }] = await Promise.all([
+        import('../firebase'),
+        import('firebase/auth'),
+      ]);
+
+      if (!auth) {
+        if (!import.meta.env.DEV) {
+          throw new Error('Firebase Authentication is not configured for this site.');
+        }
+
+        const response = await authService.devLogin(credentials);
+        if (!response.user || !response.devToken) {
+          throw new Error('Invalid development login response');
+        }
+
         setUser(response.user);
         setToken(response.devToken);
         setIsAuthenticated(true);
-
-        // If Firebase is active, sign out to avoid mixed tokens during dev login
-        try {
-          const { auth } = await import('../firebase');
-          if (auth && auth.currentUser) {
-            const { signOut } = await import('firebase/auth');
-            await signOut(auth);
-          }
-        } catch (_) {}
-
-        // Store in localStorage
-        localStorage.setItem('authToken', response.devToken);
-        localStorage.setItem('isAuthenticated', 'true');
+        setError(null);
         localStorage.setItem('userData', JSON.stringify(response.user));
         localStorage.setItem('userRole', response.user.role);
-
-        // Sync user data immediately after login
-        try {
-          await authService.syncUser();
-          const me = await userService.getMe();
-          if (me) {
-            setUser(me);
-            localStorage.setItem('userData', JSON.stringify(me));
-            if (me.role) localStorage.setItem('userRole', me.role);
-          }
-        } catch (error) {
-          console.log('Background sync failed:', error);
-        }
-
         return { success: true, user: response.user };
-      } else {
-        throw new Error('Invalid response from server');
       }
+
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        credentials.email.trim(),
+        credentials.password
+      );
+      const profile = await completeFirebaseSignIn(credential.user);
+      return { success: true, user: profile };
     } catch (error) {
       console.error('Login error:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Login failed';
@@ -152,46 +174,38 @@ export const AuthProvider = ({ children }) => {
       const response = await authService.register(userData);
 
       // Try to authenticate the user immediately after successful registration
-      try {
-        const { email, password } = userData;
-        // Prefer real Firebase sign-in when available (server returns firebase_user in prod flow)
-        let signedIn = false;
-        try {
-          const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth');
-          const auth = getAuth();
-          await signInWithEmailAndPassword(auth, email, password);
-          signedIn = true;
-        } catch (_) {
-          // ignore, may be dev mode without Firebase
+      const [{ auth }, { signInWithEmailAndPassword }] = await Promise.all([
+        import('../firebase'),
+        import('firebase/auth'),
+      ]);
+
+      if (!auth && import.meta.env.DEV) {
+        const devResponse = await authService.devLogin(userData);
+        if (!devResponse.user || !devResponse.devToken) {
+          throw new Error('Registration succeeded, but local development sign-in failed.');
         }
 
-        // If Firebase sign-in isn't available, fall back to dev login token
-        if (!signedIn) {
-          try {
-            await authService.devLogin({ email, password });
-            signedIn = true;
-          } catch (_) {}
-        }
-
-        // Best-effort: sync user and hydrate role/user locally
-        try {
-          await authService.syncUser();
-        } catch (_) {}
-        try {
-          const me = await userService.getMe();
-          if (me) {
-            setUser(me);
-            setIsAuthenticated(true);
-            localStorage.setItem('isAuthenticated', 'true');
-            if (me.role) localStorage.setItem('userRole', me.role);
-            localStorage.setItem('userData', JSON.stringify(me));
-          }
-        } catch (_) {}
-      } catch (_) {
-        // Non-fatal: even if auto login fails, registration still succeeded
+        setUser(devResponse.user);
+        setToken(devResponse.devToken);
+        setIsAuthenticated(true);
+        localStorage.setItem('authToken', devResponse.devToken);
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('userData', JSON.stringify(devResponse.user));
+        localStorage.setItem('userRole', devResponse.user.role);
+        return { success: true, data: response, user: devResponse.user };
       }
 
-      return { success: true, data: response };
+      if (!auth) {
+        throw new Error('Registration succeeded, but Firebase Authentication is not configured for this site.');
+      }
+
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        userData.email.trim(),
+        userData.password
+      );
+      const profile = await completeFirebaseSignIn(credential.user);
+      return { success: true, data: response, user: profile };
     } catch (error) {
       console.error('Registration error:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Registration failed';

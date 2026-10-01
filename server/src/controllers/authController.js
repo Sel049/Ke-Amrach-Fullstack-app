@@ -187,6 +187,10 @@ export const registerUser = async (req, res) => {
 
 // Development login (bypasses Firebase for testing)
 export const devLogin = async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
   try {
     const { email, password } = req.body;
 
