@@ -144,7 +144,7 @@ const FilterPanel = ({
 
       {/* Sidebar Drawer */}
       <div
-        className={`fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-80 max-w-[85vw] flex flex-col bg-surface border-r border-border shadow-warm-lg z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-14 ${
+        className={`fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-80 max-w-[85vw] flex flex-col bg-surface border-r border-border shadow-warm-lg z-50 transform transition-transform duration-300 ease-in-out lg:sticky lg:left-auto lg:top-14 lg:h-[calc(100vh-4rem)] lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -159,7 +159,7 @@ const FilterPanel = ({
         </div>
 
         {/* Filter Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 lg:space-y-1 lg:w-56">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Category Filter */}
           <div className="space-y-3">
             <label className="block text-sm font-medium text-text-secondary">
@@ -232,7 +232,7 @@ const FilterPanel = ({
           </div>
 
           {/* Sort */}
-          <div className="space-y-3 lg:space-y-1 lg:w-56">
+          <div className="space-y-3">
             <label className="hidden lg:flex items-center text-xs font-medium text-text-secondary gap-1">
               <Icon name="ArrowUpDown" size={14} /> Sort
             </label>
@@ -264,12 +264,16 @@ const FilterPanel = ({
             </div>
           </div>
 
-          {/* Clear All (compact) */}
-          <div className="hidden lg:block lg:ml-auto">
-            <Button variant="ghost" size="sm" onClick={handleClearAll} className="text-text-secondary hover:text-primary">
-              {t?.clearAll}
-            </Button>
-          </div>
+        </div>
+
+        {/* Desktop Footer */}
+        <div className="hidden lg:flex gap-2 border-t border-border p-4">
+          <Button variant="default" className="flex-1" onClick={handleApplyFilters}>
+            {t?.apply}
+          </Button>
+          <Button variant="ghost" onClick={handleClearAll} className="text-text-secondary hover:text-primary">
+            {t?.clearAll}
+          </Button>
         </div>
 
         {/* Mobile Footer */}

@@ -9,14 +9,23 @@ const ImageGallery = ({
   maxThumbnails = 4
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const placeholderSrc = `https://placehold.co/640x480/eaf1e8/52634b?text=${encodeURIComponent(alt || 'Produce photo')}`;
+
+  const usePlaceholderOnError = (event) => {
+    const image = event.currentTarget;
+    if (image.dataset.placeholderApplied) return;
+    image.dataset.placeholderApplied = 'true';
+    image.src = placeholderSrc;
+  };
 
   if (!images || images.length === 0) {
     return (
       <div className={`relative overflow-hidden ${className}`}>
         <Image
-          src="/assets/images/no_image.png"
+          src={placeholderSrc}
           alt={alt}
           className="w-full h-full object-cover"
+          onError={usePlaceholderOnError}
         />
       </div>
     );
@@ -33,10 +42,7 @@ const ImageGallery = ({
           src={currentImage}
           alt={`${alt} ${currentImageIndex + 1}`}
           className="w-full h-full object-cover"
-          onError={(e) => {
-            console.log('Main image failed to load:', currentImage);
-            e.target.src = '/assets/images/no_image.png';
-          }}
+          onError={usePlaceholderOnError}
         />
         
         {/* Image Counter */}
@@ -90,10 +96,7 @@ const ImageGallery = ({
                 src={image}
                 alt={`${alt} thumbnail ${index + 1}`}
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  console.log('Thumbnail image failed to load:', image);
-                  e.target.src = '/assets/images/no_image.png';
-                }}
+                onError={usePlaceholderOnError}
               />
             </button>
           ))}

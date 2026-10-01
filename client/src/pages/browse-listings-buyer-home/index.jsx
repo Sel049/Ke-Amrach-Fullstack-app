@@ -30,6 +30,7 @@ const BrowseListingsBuyerHome = () => {
   const [filteredListings, setFilteredListings] = useState([]);
   const [lastFetchTime, setLastFetchTime] = useState(null);
   const [bookmarkedFarmers, setBookmarkedFarmers] = useState(new Set());
+  const [cartNotice, setCartNotice] = useState('');
 
   // Function to get default image based on category
   const getDefaultImage = (category) => {
@@ -43,7 +44,6 @@ const BrowseListingsBuyerHome = () => {
     };
     return defaultImages[category] || 'https://images.pexels.com/photos/143133/pexels-photo-143133.jpeg';
   };
-  const [cartItems, setCartItems] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
@@ -276,8 +276,6 @@ const BrowseListingsBuyerHome = () => {
 
       setIsLoading(true);
       try {
-        console.log(`Fetching listings (attempt ${retryCount + 1})`);
-        
         // Use the new API service to fetch listings
         const response = await listingService.getActiveListings();
 
@@ -313,8 +311,6 @@ const BrowseListingsBuyerHome = () => {
           // Cache the data
           localStorage.setItem(cacheKey, JSON.stringify(transformedListings));
           localStorage.setItem(`${cacheKey}_timestamp`, now.toString());
-          
-          console.log(`Successfully loaded ${transformedListings.length} listings`);
         } else {
           throw new Error('API did not return valid listings data');
         }
@@ -382,8 +378,6 @@ const BrowseListingsBuyerHome = () => {
         // Cache the fresh data
         localStorage.setItem('listings_cache', JSON.stringify(transformedListings));
         localStorage.setItem('listings_cache_timestamp', Date.now().toString());
-        
-        console.log(`Refreshed: ${transformedListings.length} listings loaded`);
       }
     } catch (error) {
       console.error('Failed to refresh listings:', error);
@@ -562,8 +556,24 @@ const BrowseListingsBuyerHome = () => {
   const handleAddToCart = async (listingId, quantity) => {
     const listing = listings?.find(l => l?.id === listingId);
     if (!listing) return;
-    addItem({ id: listing.id, name: listing.name, nameAm: listing.nameAm, image: listing.image, pricePerKg: listing.pricePerKg }, quantity);
+    addItem({
+      id: listing.id,
+      name: listing.name,
+      nameAm: listing.nameAm,
+      image: listing.image,
+      pricePerKg: listing.pricePerKg,
+      availableQuantity: listing.availableQuantity
+    }, quantity);
+    setCartNotice(currentLanguage === 'am'
+      ? `${listing.nameAm || listing.name} ወደ ጋሪ ተጨምሯል`
+      : `${listing.name} added to cart`);
   };
+
+  useEffect(() => {
+    if (!cartNotice) return undefined;
+    const timeoutId = window.setTimeout(() => setCartNotice(''), 2800);
+    return () => window.clearTimeout(timeoutId);
+  }, [cartNotice]);
 
   // Handle contact farmer
   const handleContactFarmer = (phoneNumber) => {
@@ -588,23 +598,6 @@ const BrowseListingsBuyerHome = () => {
     setIsCartOpen(true);
   };
 
-  // Persist cart to localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('buyer_cart');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setCartItems(parsed);
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('buyer_cart', JSON.stringify(cartItems));
-    } catch {}
-  }, [cartItems]);
-
   // Cart helpers
   const updateCartQuantity = (id, quantity) => updateQuantity(id, quantity);
   const removeCartItem = (id) => removeItem(id);
@@ -612,7 +605,7 @@ const BrowseListingsBuyerHome = () => {
   const getCartTotal = () => totalCost;
 
   const placeOrder = async () => {
-    if (!cartItems.length) return;
+    if (!items.length) return;
 
     if (!isAuthenticated) {
       navigate('/authentication-login-register');
@@ -622,7 +615,7 @@ const BrowseListingsBuyerHome = () => {
     try {
       // Create order with multiple items
       const orderData = {
-        items: cartItems.map(item => ({
+        items: items.map(item => ({
           listingId: item.id,
           quantity: item.quantity
         })),
@@ -662,8 +655,8 @@ const BrowseListingsBuyerHome = () => {
         currentLanguage={currentLanguage}
       />
 
-      {/* Desktop filter panel and mobile filter drawer */}
-      <div className="p-4 lg:p-6">
+      {/* Desktop filter sidebar and mobile filter drawer */}
+      <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start lg:gap-6 lg:p-6">
         <FilterPanel
           isOpen={isFilterPanelOpen}
           onClose={() => setIsFilterPanelOpen(false)}
@@ -681,10 +674,9 @@ const BrowseListingsBuyerHome = () => {
           categoryOptions={categories.map(c => ({ id: c.value, label: currentLanguage === 'am' ? c.labelAm : c.label }))}
           regionOptions={regions.map(r => ({ id: r.label, label: currentLanguage === 'am' ? r.labelAm : r.label }))}
         />
-      </div>
 
       {/* Listings Content */}
-      <div className="flex-1 p-4 lg:p-6">
+      <div className="min-w-0 flex-1">
           {/* Sort and Results Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">
@@ -741,7 +733,10 @@ const BrowseListingsBuyerHome = () => {
               currentLanguage={currentLanguage}
             />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div
+              className="grid w-full gap-4"
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))' }}
+            >
               {filteredListings?.map((listing) => (
                 <ProduceCard
                   key={listing?.id}
@@ -756,6 +751,19 @@ const BrowseListingsBuyerHome = () => {
             </div>
           )}
       </div>
+      </div>
+
+      {cartNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-md bg-white px-4 py-3 text-sm text-text-primary shadow-lg ring-1 ring-black/10"
+        >
+          <Icon name="CheckCircle" size={18} className="text-success" />
+          <span>{cartNotice}</span>
+        </div>
+      )}
+
       {/* Mini Cart Modal */}
       {isCartOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

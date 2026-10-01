@@ -46,8 +46,11 @@ const ProduceCard = ({
 
   const handleAddToCart = async () => {
     setIsAdding(true);
-    await onAddToCart(listing?.id, 1); // Always add with quantity 1
-    setIsAdding(false);
+    try {
+      await onAddToCart(listing?.id, 1);
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const handleViewDetails = () => {
@@ -184,13 +187,13 @@ const ProduceCard = ({
 
 
         {/* Action Buttons */}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_2.75rem] gap-2">
           <Button
             variant="default"
             size="sm"
             onClick={handleAddToCart}
             loading={isAdding}
-            className="flex-1"
+            className="w-full min-w-0 px-2"
             iconName="ShoppingCart"
             iconPosition="left"
             iconSize={16}
@@ -199,13 +202,13 @@ const ProduceCard = ({
           </Button>
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={handleViewDetails}
             iconName="Eye"
             iconSize={16}
-          >
-            {t?.viewDetails}
-          </Button>
+            title={t?.viewDetails}
+            aria-label={t?.viewDetails}
+          />
         </div>
       </div>
     </div>
