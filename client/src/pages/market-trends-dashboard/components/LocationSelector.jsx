@@ -1,48 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import Select from '../../../components/ui/Select';
 import Icon from '../../../components/AppIcon';
+import { getRegionOptions, getWoredaOptions, getWoredas } from '../../../data/ethiopiaLocations';
+
+const DEFAULT_REGION = 'addis-ababa';
 
 const LocationSelector = ({ onLocationChange, currentLanguage = 'en' }) => {
-  const [selectedRegion, setSelectedRegion] = useState('addis-ababa');
-  const [selectedWoreda, setSelectedWoreda] = useState('bole');
+  const language = currentLanguage === 'am' ? 'am' : 'en';
+  const [selectedRegion, setSelectedRegion] = useState(DEFAULT_REGION);
+  const [selectedWoreda, setSelectedWoreda] = useState(() => getWoredas(DEFAULT_REGION)[0] || '');
 
-  const regions = [
-    { value: 'addis-ababa', label: 'Addis Ababa', labelAm: 'አዲስ አበባ' },
-    { value: 'oromia', label: 'Oromia', labelAm: 'ኦሮሚያ' },
-    { value: 'amhara', label: 'Amhara', labelAm: 'አማራ' },
-    { value: 'tigray', label: 'Tigray', labelAm: 'ትግራይ' },
-    { value: 'snnpr', label: 'SNNPR', labelAm: 'ደቡብ ብሔሮች' },
-    { value: 'sidama', label: 'Sidama', labelAm: 'ሲዳማ' }
-  ];
-
-  const woredas = {
-    'addis-ababa': [
-      { value: 'bole', label: 'Bole', labelAm: 'ቦሌ' },
-      { value: 'kirkos', label: 'Kirkos', labelAm: 'ቂርቆስ' },
-      { value: 'yeka', label: 'Yeka', labelAm: 'የካ' },
-      { value: 'arada', label: 'Arada', labelAm: 'አራዳ' }
-    ],
-    'oromia': [
-      { value: 'adama', label: 'Adama', labelAm: 'አዳማ' },
-      { value: 'jimma', label: 'Jimma', labelAm: 'ጅማ' },
-      { value: 'nekemte', label: 'Nekemte', labelAm: 'ነቀምት' },
-      { value: 'hawassa', label: 'Hawassa', labelAm: 'ሐዋሳ' }
-    ],
-    'amhara': [
-      { value: 'bahir-dar', label: 'Bahir Dar', labelAm: 'ባሕር ዳር' },
-      { value: 'gondar', label: 'Gondar', labelAm: 'ጎንደር' },
-      { value: 'dessie', label: 'Dessie', labelAm: 'ደሴ' },
-      { value: 'debre-markos', label: 'Debre Markos', labelAm: 'ደብረ ማርቆስ' }
-    ]
-  };
-
-  const getLabel = (item) => {
-    return currentLanguage === 'am' && item?.labelAm ? item?.labelAm : item?.label;
-  };
 
   const handleRegionChange = (value) => {
     setSelectedRegion(value);
-    const firstWoreda = woredas?.[value]?.[0]?.value || '';
+    const firstWoreda = getWoredas(value)[0] || '';
     setSelectedWoreda(firstWoreda);
     
     if (onLocationChange) {
@@ -73,15 +44,9 @@ const LocationSelector = ({ onLocationChange, currentLanguage = 'en' }) => {
     }
   }, []);
 
-  const regionOptions = regions?.map(region => ({
-    value: region?.value,
-    label: getLabel(region)
-  }));
+  const regionOptions = getRegionOptions(language);
 
-  const woredaOptions = (woredas?.[selectedRegion] || [])?.map(woreda => ({
-    value: woreda?.value,
-    label: getLabel(woreda)
-  }));
+  const woredaOptions = getWoredaOptions(selectedRegion);
 
   return (
     <div className="bg-surface p-4 lg:p-6 rounded-lg border border-border shadow-warm">

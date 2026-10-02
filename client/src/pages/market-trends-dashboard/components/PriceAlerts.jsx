@@ -3,6 +3,7 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import { getRegionOptions } from '../../../data/ethiopiaLocations';
 
 const PriceAlerts = ({ currentLanguage = 'en' }) => {
   const [showAddAlert, setShowAddAlert] = useState(false);
@@ -92,8 +93,8 @@ const PriceAlerts = ({ currentLanguage = 'en' }) => {
       targetPrice: 40.00,
       condition: "above",
       conditionAm: "በላይ",
-      region: "SNNPR",
-      regionAm: "ደቡብ ብሔሮች",
+      region: "South Ethiopia",
+      regionAm: "ደቡብ ኢትዮጵያ",
       isActive: true,
       currentPrice: 36.60,
       created: "2025-08-21",
@@ -145,18 +146,8 @@ const PriceAlerts = ({ currentLanguage = 'en' }) => {
     { value: 'below', label: 'Below', labelAm: 'በታች' }
   ];
 
-  const regionOptions = [
-    { value: 'addis-ababa', label: 'Addis Ababa', labelAm: 'አዲስ አበባ' },
-    { value: 'oromia', label: 'Oromia', labelAm: 'ኦሮሚያ' },
-    { value: 'amhara', label: 'Amhara', labelAm: 'አማራ' },
-    { value: 'tigray', label: 'Tigray', labelAm: 'ትግራይ' },
-    { value: 'snnpr', label: 'SNNPR', labelAm: 'ደቡብ ብሔሮች' },
-    { value: 'sidama', label: 'Sidama', labelAm: 'ሲዳማ' },
-    { value: 'harari', label: 'Harari', labelAm: 'ሀረሪ' },
-    { value: 'dire-dawa', label: 'Dire Dawa', labelAm: 'ድሬ ዳዋ' },
-    { value: 'gambela', label: 'Gambela', labelAm: 'ጋምቤላ' },
-    { value: 'afar', label: 'Afar', labelAm: 'አፋር' }
-  ];
+  // Localized region options — shared source of truth (14 first-level divisions).
+  const regionOptions = getRegionOptions(currentLanguage === 'am' ? 'am' : 'en');
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('en-US', {

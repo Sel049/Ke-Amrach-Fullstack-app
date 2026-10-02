@@ -5,6 +5,11 @@ import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import { useAuth } from '../../../hooks/useAuth.jsx';
+import {
+  getRegionOptions as buildRegionOptions,
+  getWoredaOptions as buildWoredaOptions,
+  normalizeRegion
+} from '../../../data/ethiopiaLocations';
 
 const AccountInformation = ({ userRole, currentLanguage, onProfileUpdated }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -38,8 +43,11 @@ const AccountInformation = ({ userRole, currentLanguage, onProfileUpdated }) => 
           ...registrationData
         }));
         
-        // If this is a new user with incomplete profile, auto-enable editing
-        const hasIncompleteProfile = !data.full_name || !data.phone || !data.region || !data.woreda;
+        // A new user has an incomplete profile. Compare on canonical region slugs
+        // so legacy values already in the DB (e.g. 'Addis Ababa', 'SNNPR') don't
+        // force the edit form open for users who have finished their profile.
+        const canonicalRegion = normalizeRegion(data.region) || '';
+        const hasIncompleteProfile = !data.full_name || !data.phone || !canonicalRegion || !data.woreda;
         if (hasIncompleteProfile) {
           setIsEditing(true);
         }
@@ -69,39 +77,30 @@ const AccountInformation = ({ userRole, currentLanguage, onProfileUpdated }) => 
     loadProfile();
   }, [currentLanguage]);
 
-  const regions = [
-    { value: 'addis-ababa', label: 'Addis Ababa', labelAm: 'አዲስ አበባ' },
-    { value: 'oromia', label: 'Oromia', labelAm: 'ኦሮሚያ' },
-    { value: 'amhara', label: 'Amhara', labelAm: 'አማራ' },
-    { value: 'tigray', label: 'Tigray', labelAm: 'ትግራይ' },
-    { value: 'snnpr', label: 'SNNPR', labelAm: 'ደቡብ ብሔሮች' },
-    { value: 'afar', label: 'Afar', labelAm: 'አፋር' },
-    { value: 'somali', label: 'Somali', labelAm: 'ሶማሊ' },
-    { value: 'benishangul', label: 'Benishangul-Gumuz', labelAm: 'ቤንሻንጉል ጉሙዝ' },
-    { value: 'gambela', label: 'Gambela', labelAm: 'ጋምቤላ' },
-    { value: 'harari', label: 'Harari', labelAm: 'ሐረሪ' },
-    { value: 'dire-dawa', label: 'Dire Dawa', labelAm: 'ድሬዳዋ' }
-  ];
+  // The form keeps the user's stored value so legacy rows (e.g. 'Addis Ababa',
+  // 'Adama') still display correctly. Only *changing* the selection switches it
+  // to a canonical slug/name from the shared dataset.
+  const language = currentLanguage === 'am' ? 'am' : 'en';
+  const regions = buildRegionOptions(language);
+  const woredas = (region) => buildWoredaOptions(region);
 
-  const woredas = {
-    'addis-ababa': [
-      { value: 'bole', label: 'Bole Sub-city', labelAm: 'ቦሌ ክፍለ ከተማ' },
-      { value: 'kirkos', label: 'Kirkos Sub-city', labelAm: 'ቂርቆስ ክፍለ ከተማ' },
-      { value: 'yeka', label: 'Yeka Sub-city', labelAm: 'የካ ክፍለ ከተማ' },
-      { value: 'nifas-silk', label: 'Nifas Silk Sub-city', labelAm: 'ንፋስ ስልክ ክፍለ ከተማ' }
-    ],
-    'oromia': [
-      { value: 'adama', label: 'Adama Woreda', labelAm: 'አዳማ ወረዳ' },
-      { value: 'bishoftu', label: 'Bishoftu Woreda', labelAm: 'ብሾፍቱ ወረዳ' },
-      { value: 'sebeta', label: 'Sebeta Woreda', labelAm: 'ሰበታ ወረዳ' },
-      { value: 'jimma', label: 'Jimma Woreda', labelAm: 'ጅማ ወረዳ' }
-    ],
-    'amhara': [
-      { value: 'bahir-dar', label: 'Bahir Dar Woreda', labelAm: 'ባሕር ዳር ወረዳ' },
-      { value: 'gondar', label: 'Gondar Woreda', labelAm: 'ጎንደር ወረዳ' },
-      { value: 'dessie', label: 'Dessie Woreda', labelAm: 'ደሴ ወረዳ' }
-    ]
-  };
+  const regionOptions = (() => {
+    const options = [...regions];
+    const stored = formData?.region;
+    if (stored && !options.some((option) => option.value === stored)) {
+      options.unshift({ value: stored, label: stored });
+    }
+    return options;
+  })();
+
+  const woredaOptionsForRegion = (() => {
+    const options = woredas(formData?.region);
+    const stored = formData?.woreda;
+    if (stored && !options.some((option) => option.value === stored)) {
+      options.unshift({ value: stored, label: stored });
+    }
+    return options;
+  })();
 
   const languageOptions = [
     { value: 'en', label: 'English', labelAm: 'እንግሊዝኛ' },
@@ -305,26 +304,22 @@ const AccountInformation = ({ userRole, currentLanguage, onProfileUpdated }) => 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Select
               label={getLabel('Region', 'ክልል')}
-              options={regions?.map(region => ({
-                value: region?.value,
-                label: getOptionLabel(region)
-              }))}
+              options={regionOptions}
               value={formData?.region}
               onChange={(value) => handleInputChange('region', value)}
               disabled={!isEditing}
               required
+              searchable
             />
 
             <Select
               label={getLabel('Woreda/Sub-city', 'ወረዳ/ክፍለ ከተማ')}
-              options={(woredas?.[formData?.region] || [])?.map(woreda => ({
-                value: woreda?.value,
-                label: getOptionLabel(woreda)
-              }))}
+              options={woredaOptionsForRegion}
               value={formData?.woreda}
               onChange={(value) => handleInputChange('woreda', value)}
               disabled={!isEditing || !formData?.region}
               required
+              searchable
             />
           </div>
         </div>

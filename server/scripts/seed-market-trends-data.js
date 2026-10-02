@@ -9,18 +9,29 @@ const seedMarketTrendsData = async () => {
     await pool.query('DELETE FROM price_trends');
     console.log('✅ Cleared existing price trends data');
 
-    // Define regions and woredas
+    // Define regions and woredas.
+    // Current Ethiopian first-level divisions (14): 12 regional states + the
+    // Addis Ababa and Dire Dawa chartered city administrations.
+    // NOTE: SNNPR was dissolved in 2023; its territory is now Central Ethiopia
+    // and South Ethiopia. Sidama (2020) and South West Ethiopia (2021) also split
+    // out earlier. Woreda names below are real and taken from the shared client
+    // dataset (client/src/data/ethiopiaLocations.js) so both sides agree.
+    // Recap: re-running this script DELETEs all rows in price_trends.
     const regions = [
-      { name: 'Addis Ababa', woredas: ['Bole', 'Kirkos', 'Nifas Silk-Lafto', 'Kolfe Keranio', 'Arada'] },
-      { name: 'Oromia', woredas: ['Jimma', 'Nekemte', 'Shashemene', 'Adama', 'Bishoftu'] },
-      { name: 'Amhara', woredas: ['Bahir Dar', 'Gondar', 'Dessie', 'Debre Markos', 'Woldia'] },
-      { name: 'Tigray', woredas: ['Mekelle', 'Axum', 'Adigrat', 'Shire', 'Humera'] },
-      { name: 'SNNPR', woredas: ['Hawassa', 'Arba Minch', 'Dilla', 'Wolaita Sodo', 'Jinka'] },
-      { name: 'Sidama', woredas: ['Hawassa', 'Yirgalem', 'Aleta Wondo', 'Dale', 'Bona'] },
-      { name: 'Harari', woredas: ['Harar', 'Dire Dawa'] },
-      { name: 'Dire Dawa', woredas: ['Dire Dawa'] },
-      { name: 'Gambela', woredas: ['Gambela', 'Itang', 'Agnwa'] },
-      { name: 'Afar', woredas: ['Semera', 'Asayita', 'Dubti', 'Afambo', 'Ewa'] }
+      { name: 'Addis Ababa', woredas: ['Bole Sub City', 'Nifas Silk Lafto Sub City', 'Kolfe Keraniyo Sub City', 'Arada Sub City', 'Yeka Sub City'] },
+      { name: 'Dire Dawa', woredas: ['Sabian', 'Legehare', 'Gende Kore', 'Addis Ketema (DD)', 'Biyo Awale'] },
+      { name: 'Tigray', woredas: ['Tahtay Adiyabo', 'Tahtay Koraro', 'Asgede', 'Sheraro town', 'Adwa'] },
+      { name: 'Afar', woredas: ['Dubti', 'Elidar', 'Asayita', 'Afambo', 'Mile'] },
+      { name: 'Amhara', woredas: ['Addi Arekay', 'Janamora', 'Debark', 'Dabat', 'Bahir Dar Zuria'] },
+      { name: 'Oromia', woredas: ['Mana Sibu', 'Nejo', 'Gimbi', 'Lalo Asabi', 'Kiltu Kara'] },
+      { name: 'Somali', woredas: ['Ayisha', 'Dembel', 'Shinile', 'Erer (SM)', 'Afdem'] },
+      { name: 'Benishangul-Gumuz', woredas: ['Gilgel Beles town', 'Dangur', 'Guba', 'Wembera', 'Mandura'] },
+      { name: 'Central Ethiopia', woredas: ['Kebena Special', 'Abeshege', 'Ezha', 'Endiguagn', 'Silti'] },
+      { name: 'South Ethiopia', woredas: ['Boloso Sore', 'Damot Gale', 'Damot Woide', 'Humbo', 'Sodo Zuria'] },
+      { name: 'South West Ethiopia', woredas: ['Anderacha', 'Masha', 'Yeki', 'Tepi', 'Masha town'] },
+      { name: 'Gambela', woredas: ['Akobo', 'Lare', 'Jikawo', 'Wantawo', 'Makuey'] },
+      { name: 'Harari', woredas: ['Sofi', 'Shenkor', 'Jinela', 'Hakim', 'Erer (HR)'] },
+      { name: 'Sidama', woredas: ['Hawassa town', 'Wondo-Genet town', 'Wondo-Genet', 'Malga', 'Gorche'] }
     ];
 
     // Define crops with their base prices and seasonal patterns

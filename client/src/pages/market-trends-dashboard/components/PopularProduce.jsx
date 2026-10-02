@@ -100,8 +100,8 @@ const PopularProduce = ({ currentLanguage = 'en' }) => {
       rank: 6,
       marketShare: 4.3,
       icon: "Wheat",
-      region: "SNNPR",
-      regionAm: "ደቡብ",
+      region: "South Ethiopia",
+      regionAm: "ደቡብ ኢትዮጵያ",
       demand: "Medium",
       demandAm: "መካከለኛ"
     },

@@ -49,8 +49,8 @@ const MarketComparison = ({ currentLanguage = 'en' }) => {
         isLowest: true
       },
       {
-        region: 'SNNPR',
-        regionAm: 'ደቡብ ብሔሮች',
+        region: 'South Ethiopia',
+        regionAm: 'ደቡብ ኢትዮጵያ',
         price: 93.20,
         change: 1.9,
         trend: 'up',
@@ -81,8 +81,8 @@ const MarketComparison = ({ currentLanguage = 'en' }) => {
         isHighest: true
       },
       {
-        region: 'SNNPR',
-        regionAm: 'ደቡብ ብሔሮች',
+        region: 'South Ethiopia',
+        regionAm: 'ደቡብ ኢትዮጵያ',
         price: 278.50,
         change: -3.2,
         trend: 'down',
@@ -133,8 +133,8 @@ const MarketComparison = ({ currentLanguage = 'en' }) => {
         isHighest: false
       },
       {
-        region: 'SNNPR',
-        regionAm: 'ደቡብ ብሔሮች',
+        region: 'South Ethiopia',
+        regionAm: 'ደቡብ ኢትዮጵያ',
         price: 38.50,
         change: 4.8,
         trend: 'up',
@@ -249,8 +249,8 @@ const MarketComparison = ({ currentLanguage = 'en' }) => {
     ],
     sorghum: [
       {
-        region: 'SNNPR',
-        regionAm: 'ደቡብ ብሔሮች',
+        region: 'South Ethiopia',
+        regionAm: 'ደቡብ ኢትዮጵያ',
         price: 36.60,
         change: 2.8,
         trend: 'up',

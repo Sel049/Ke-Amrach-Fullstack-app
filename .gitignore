@@ -71,6 +71,9 @@ dist/
 build/
 out/
 
+# Generated / downloaded data (regenerate with client/scripts/generate-ethiopia-locations.mjs)
+client/scripts/.geo-tmp/
+
 # Uploads
 uploads/
 temp/

@@ -1,55 +1,22 @@
 import React from 'react';
+import { getRegionOptions, getWoredaGroups } from '../../../data/ethiopiaLocations';
 
 const LocationSection = ({ formData, formErrors, onUpdate, currentLanguage }) => {
-  const regions = [
-    { value: 'Addis Ababa', label: 'Addis Ababa', labelAm: 'አዲስ አበባ' },
-    { value: 'Afar', label: 'Afar', labelAm: 'አፋር' },
-    { value: 'Amhara', label: 'Amhara', labelAm: 'አማራ' },
-    { value: 'Benishangul-Gumuz', label: 'Benishangul-Gumuz', labelAm: 'ቤኒሻንጉል-ጉሙዝ' },
-    { value: 'Dire Dawa', label: 'Dire Dawa', labelAm: 'ድሬ ዳዋ' },
-    { value: 'Gambela', label: 'Gambela', labelAm: 'ጋምቤላ' },
-    { value: 'Harari', label: 'Harari', labelAm: 'ሀረሪ' },
-    { value: 'Oromia', label: 'Oromia', labelAm: 'ኦሮሚያ' },
-    { value: 'Sidama', label: 'Sidama', labelAm: 'ሲዳማ' },
-    { value: 'SNNPR', label: 'SNNPR', labelAm: 'ደቡብ ብሔሮች' },
-    { value: 'Somali', label: 'Somali', labelAm: 'ሶማሌ' },
-    { value: 'South West', label: 'South West', labelAm: 'ደቡብ ምዕራብ' },
-    { value: 'Tigray', label: 'Tigray', labelAm: 'ትግራይ' }
-  ];
+  const language = currentLanguage === 'am' ? 'am' : 'en';
 
-  const woredas = {
-    'Addis Ababa': [
-      { value: 'Arada', label: 'Arada', labelAm: 'አራዳ' },
-      { value: 'Bole', label: 'Bole', labelAm: 'ቦሌ' },
-      { value: 'Gullele', label: 'Gullele', labelAm: 'ጉለሌ' },
-      { value: 'Kirkos', label: 'Kirkos', labelAm: 'ቂርቆስ' },
-      { value: 'Kolfe Keranio', label: 'Kolfe Keranio', labelAm: 'ኮልፌ ከራኒዮ' },
-      { value: 'Lideta', label: 'Lideta', labelAm: 'ሊደታ' },
-      { value: 'Nifas Silk-Lafto', label: 'Nifas Silk-Lafto', labelAm: 'ንፋስ ስልክ-ላፍቶ' },
-      { value: 'Yeka', label: 'Yeka', labelAm: 'የካ' }
-    ],
-    'Amhara': [
-      { value: 'Bahir Dar', label: 'Bahir Dar', labelAm: 'ባሕር ዳር' },
-      { value: 'Gondar', label: 'Gondar', labelAm: 'ጎንደር' },
-      { value: 'Dessie', label: 'Dessie', labelAm: 'ደሴ' },
-      { value: 'Debre Markos', label: 'Debre Markos', labelAm: 'ደብረ ማርቆስ' }
-    ],
-    'Oromia': [
-      { value: 'Adama', label: 'Adama', labelAm: 'አዳማ' },
-      { value: 'Jimma', label: 'Jimma', labelAm: 'ጅማ' },
-      { value: 'Bishoftu', label: 'Bishoftu', labelAm: 'ቢሾፍቱ' },
-      { value: 'Shashemene', label: 'Shashemene', labelAm: 'ሻሸመኔ' }
-    ],
-    'Tigray': [
-      { value: 'Mekelle', label: 'Mekelle', labelAm: 'መቀሌ' },
-      { value: 'Axum', label: 'Axum', labelAm: 'አክሱም' },
-      { value: 'Adigrat', label: 'Adigrat', labelAm: 'አዲግራት' }
-    ]
+  // Existing listings may hold legacy free-text values (e.g. region
+  // 'Debre Zeit, Oromia' or woreda 'Bahir Dar'). Keep the stored value
+  // selectable so the edit form never shows a blank field.
+  const preserveStored = (options, stored) => {
+    if (!stored) return options;
+    if (options.some((option) => option.value === stored || option.label === stored)) return options;
+    return [{ value: stored, label: stored }, ...options];
   };
 
-  const getWoredasForRegion = (region) => {
-    return woredas[region] || [];
-  };
+  const regions = preserveStored(getRegionOptions(language), formData.region);
+  const woredaGroups = getWoredaGroups(formData.region);
+  const woredaInGroups = woredaGroups.some((zone) => zone.woredas.includes(formData.woreda));
+  const showStoredWoreda = Boolean(formData.woreda) && !woredaInGroups;
 
   return (
     <div className="space-y-6">
@@ -86,7 +53,7 @@ const LocationSection = ({ formData, formErrors, onUpdate, currentLanguage }) =>
             </option>
             {regions.map((region) => (
               <option key={region.value} value={region.value}>
-                {currentLanguage === 'en' ? region.label : region.labelAm}
+                {region.label}
               </option>
             ))}
           </select>
@@ -114,10 +81,17 @@ const LocationSection = ({ formData, formErrors, onUpdate, currentLanguage }) =>
                 : (formData.region ? 'ወረዳ ይምረጡ' : 'መጀመሪያ ክልል ይምረጡ')
               }
             </option>
-            {getWoredasForRegion(formData.region).map((woreda) => (
-              <option key={woreda.value} value={woreda.value}>
-                {currentLanguage === 'en' ? woreda.label : woreda.labelAm}
-              </option>
+            {showStoredWoreda && (
+              <option value={formData.woreda}>{formData.woreda}</option>
+            )}
+            {woredaGroups.map((zone) => (
+              <optgroup key={zone.value} label={zone.label}>
+                {zone.woredas.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           {formErrors.woreda && (

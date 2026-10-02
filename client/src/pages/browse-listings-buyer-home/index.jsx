@@ -12,6 +12,7 @@ import LoadingSkeleton from './components/LoadingSkeleton';
 import EmptyState from './components/EmptyState';
 import { useLanguage } from '../../hooks/useLanguage.jsx';
 import { useCart } from '../../hooks/useCart.jsx';
+import { getRegionOptions, getRegionLabel, normalizeRegion } from '../../data/ethiopiaLocations';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 
@@ -61,13 +62,7 @@ const BrowseListingsBuyerHome = () => {
   ];
   const regions = [
     { value: 'all', label: 'All Regions', labelAm: 'ሁሉም ክልሎች' },
-    { value: 'Addis Ababa', label: 'Addis Ababa', labelAm: 'አዲስ አበባ' },
-    { value: 'Oromia', label: 'Oromia', labelAm: 'ኦሮሚያ' },
-    { value: 'Amhara', label: 'Amhara', labelAm: 'አማራ' },
-    { value: 'Tigray', label: 'Tigray', labelAm: 'ትግራይ' },
-    { value: 'SNNP', label: 'SNNP', labelAm: 'ደቡብ ብሔሮች' },
-    { value: 'Somali', label: 'Somali', labelAm: 'ሶማሌ' },
-    { value: 'Afar', label: 'Afar', labelAm: 'አፋር' }
+    ...getRegionOptions('en')
   ];
 
   // Filter state
@@ -153,7 +148,7 @@ const BrowseListingsBuyerHome = () => {
         id: 4,
         name: "Hanna Wolde",
         avatar: "https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg",
-        location: "Hawassa, SNNP",
+        location: "Hawassa, Sidama",
         rating: 4.7,
         reviewCount: 203,
         phone: "+251944567890",
@@ -415,9 +410,18 @@ const BrowseListingsBuyerHome = () => {
 
     const activeRegion = filters?.regions?.[0] || 'all';
     if (activeRegion !== 'all') {
+      // Accept both legacy stored values (e.g. 'Addis Ababa') and the canonical
+      // slug now emitted by the filter ('addis-ababa').
+      const candidates = [
+        activeRegion,
+        getRegionLabel(activeRegion, 'en'),
+        normalizeRegion(activeRegion)
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
       filtered = filtered?.filter(listing => {
         const location = (listing?.farmer?.location || listing?.location || '')?.toLowerCase();
-        return location === activeRegion?.toLowerCase() || location?.includes(activeRegion?.toLowerCase());
+        return candidates.some((candidate) => location.includes(candidate));
       });
     }
 
@@ -480,14 +484,10 @@ const BrowseListingsBuyerHome = () => {
     });
 
     filters?.regions?.forEach(region => {
-      const labels = {
-        en: { oromia: 'Oromia', amhara: 'Amhara', tigray: 'Tigray', snnp: 'SNNP' },
-        am: { oromia: 'ኦሮሚያ', amhara: 'አማራ', tigray: 'ትግራይ', snnp: 'ደቡብ ብሔሮች' }
-      };
       activeFilters?.push({
         type: 'region',
         value: region,
-        label: labels?.[currentLanguage]?.[region] || region
+        label: getRegionLabel(region, currentLanguage)
       });
     });
 
@@ -666,7 +666,7 @@ const BrowseListingsBuyerHome = () => {
         selectedRegion={selectedRegion}
         currentSort={currentSort}
         categoryOptions={categories.map(c => ({ id: c.value, label: currentLanguage === 'am' ? c.labelAm : c.label }))}
-        regionOptions={regions.map(r => ({ id: r.label, label: currentLanguage === 'am' ? r.labelAm : r.label }))}
+        regionOptions={regions.map(r => ({ id: r.value, label: currentLanguage === 'am' ? r.labelAm : r.label }))}
       />
 
       {/* Active filter chips */}

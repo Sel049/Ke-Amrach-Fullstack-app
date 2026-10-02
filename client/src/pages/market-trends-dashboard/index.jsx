@@ -11,13 +11,16 @@ import PriceAlerts from './components/PriceAlerts';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 import { useLanguage } from '../../hooks/useLanguage.jsx';
+import { getWoredas } from '../../data/ethiopiaLocations';
+
+const DEFAULT_REGION = 'addis-ababa';
 
 const MarketTrendsDashboard = () => {
   const { language } = useLanguage();
   const [currentLanguage, setCurrentLanguage] = useState('en');
   const [selectedLocation, setSelectedLocation] = useState({
-    region: 'addis-ababa',
-    woreda: 'bole'
+    region: DEFAULT_REGION,
+    woreda: getWoredas(DEFAULT_REGION)[0] || ''
   });
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
