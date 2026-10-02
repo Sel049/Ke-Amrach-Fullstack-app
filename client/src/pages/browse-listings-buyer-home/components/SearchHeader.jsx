@@ -8,6 +8,8 @@ const SearchHeader = ({
   cartItemCount = 0, 
   onCartClick,
   onFilterClick,
+  isFilterPanelOpen = false,
+  activeFilterCount = 0,
   currentLanguage = 'en' 
 }) => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -64,16 +66,24 @@ const SearchHeader = ({
             </div>
           </div>
 
-          {/* Buttons removed from search bar per request */}
-          {/* Filters Button */}
+          {/* Filters Button - toggles the horizontal filter bar (desktop) / drawer (mobile) */}
           <Button
             variant="outline"
             size="sm"
             onClick={onFilterClick}
-            className="flex items-center gap-2"
+            aria-expanded={isFilterPanelOpen}
+            aria-controls="listing-filters"
+            className={`relative flex items-center gap-2 ${
+              isFilterPanelOpen ? 'border-primary bg-primary/5 text-primary' : ''
+            }`}
           >
             <Icon name="Filter" size={16} />
             <span className="hidden sm:inline">{t?.filters}</span>
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 text-[10px] bg-primary text-white rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
           </Button>
 
           {/* Cart Button */}

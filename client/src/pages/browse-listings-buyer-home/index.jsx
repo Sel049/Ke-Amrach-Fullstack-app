@@ -644,10 +644,32 @@ const BrowseListingsBuyerHome = () => {
         onSearchChange={setSearchQuery}
         cartItemCount={totalCartItems}
         onCartClick={handleCartClick}
-        onFilterClick={() => setIsFilterPanelOpen(true)}
+        onFilterClick={() => setIsFilterPanelOpen(prev => !prev)}
+        isFilterPanelOpen={isFilterPanelOpen}
+        activeFilterCount={getActiveFilters()?.length || 0}
         currentLanguage={currentLanguage}
       />
-      {/* Filter Chips */}
+
+      {/* Horizontal filter bar (desktop) + filter drawer (mobile) */}
+      <FilterPanel
+        isOpen={isFilterPanelOpen}
+        onClose={() => setIsFilterPanelOpen(false)}
+        filters={filters}
+        onApplyFilters={(f) => {
+          setFilters(f);
+          setSelectedCategory((f?.produceTypes && f.produceTypes[0]) || 'all');
+          setSelectedRegion((f?.regions && f.regions[0]) || 'all');
+          setCurrentSort(f?.sort || currentSort);
+        }}
+        currentLanguage={currentLanguage}
+        selectedCategory={selectedCategory}
+        selectedRegion={selectedRegion}
+        currentSort={currentSort}
+        categoryOptions={categories.map(c => ({ id: c.value, label: currentLanguage === 'am' ? c.labelAm : c.label }))}
+        regionOptions={regions.map(r => ({ id: r.label, label: currentLanguage === 'am' ? r.labelAm : r.label }))}
+      />
+
+      {/* Active filter chips */}
       <FilterChips
         activeFilters={getActiveFilters()}
         onRemoveFilter={handleRemoveFilter}
@@ -655,28 +677,9 @@ const BrowseListingsBuyerHome = () => {
         currentLanguage={currentLanguage}
       />
 
-      {/* Desktop filter sidebar and mobile filter drawer */}
-      <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start lg:gap-6 lg:p-6">
-        <FilterPanel
-          isOpen={isFilterPanelOpen}
-          onClose={() => setIsFilterPanelOpen(false)}
-          filters={filters}
-          onApplyFilters={(f) => {
-            setFilters(f);
-            setSelectedCategory((f?.produceTypes && f.produceTypes[0]) || 'all');
-            setSelectedRegion((f?.regions && f.regions[0]) || 'all');
-            setCurrentSort(f?.sort || currentSort);
-          }}
-          currentLanguage={currentLanguage}
-          selectedCategory={selectedCategory}
-          selectedRegion={selectedRegion}
-          currentSort={currentSort}
-          categoryOptions={categories.map(c => ({ id: c.value, label: currentLanguage === 'am' ? c.labelAm : c.label }))}
-          regionOptions={regions.map(r => ({ id: r.label, label: currentLanguage === 'am' ? r.labelAm : r.label }))}
-        />
-
       {/* Listings Content */}
-      <div className="min-w-0 flex-1">
+      <div className="p-4 lg:p-6">
+        <div className="min-w-0">
           {/* Sort and Results Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">
@@ -733,10 +736,7 @@ const BrowseListingsBuyerHome = () => {
               currentLanguage={currentLanguage}
             />
           ) : (
-            <div
-              className="grid w-full gap-4"
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))' }}
-            >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredListings?.map((listing) => (
                 <ProduceCard
                   key={listing?.id}
@@ -750,7 +750,7 @@ const BrowseListingsBuyerHome = () => {
               ))}
             </div>
           )}
-      </div>
+        </div>
       </div>
 
       {cartNotice && (

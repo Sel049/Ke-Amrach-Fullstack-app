@@ -2,7 +2,7 @@ import React from 'react';
 
 const LoadingSkeleton = ({ count = 8 }) => {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {[...Array(count)]?.map((_, index) => (
         <div key={index} className="bg-card rounded-lg border border-border overflow-hidden animate-pulse">
           {/* Image Skeleton */}

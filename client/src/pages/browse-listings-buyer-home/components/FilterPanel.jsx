@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
-import { Checkbox } from '../../../components/ui/Checkbox';
 
 const FilterPanel = ({
   isOpen,
@@ -32,6 +31,16 @@ const FilterPanel = ({
     setLocalRegion(selectedRegion);
     setLocalSort(currentSort);
   }, [filters, selectedCategory, selectedRegion, currentSort]);
+
+  // Escape closes the panel (desktop bar and mobile drawer alike)
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleEscape = (event) => {
+      if (event?.key === 'Escape') onClose?.();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
 
   const translations = {
     en: {
@@ -82,6 +91,10 @@ const FilterPanel = ({
     { id: 'priceLowHigh', label: currentLanguage === 'am' ? 'ዋጋ: ዝቅ ወደ ከፍ' : 'Price: Low → High' },
     { id: 'priceHighLow', label: currentLanguage === 'am' ? 'ዋጋ: ከፍ ወደ ዝቅ' : 'Price: High → Low' },
   ];
+
+  // Shared styling for the horizontal desktop filter bar
+  const desktopLabelClass = 'mb-1 block text-xs font-medium text-text-secondary';
+  const desktopControlClass = 'h-10 w-full rounded-full border border-border bg-white px-4 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary';
 
   const handlePriceChange = (type, value) => {
     setLocalFilters(prev => ({
@@ -134,6 +147,134 @@ const FilterPanel = ({
 
   return (
     <>
+      {/* Desktop: horizontal filter bar that drops down under the search bar */}
+      {isOpen && (
+        <div
+          id="listing-filters"
+          className="hidden border-b border-border bg-surface shadow-warm lg:block"
+        >
+          <div className="flex flex-wrap items-end gap-4 px-6 py-4">
+            {/* Category */}
+            <div className="min-w-[11rem] flex-1">
+              <label htmlFor="desktop-filter-category" className={desktopLabelClass}>
+                {currentLanguage === 'am' ? 'የምርት አይነት' : 'Category'}
+              </label>
+              <select
+                id="desktop-filter-category"
+                value={localCategory}
+                onChange={(e) => handleCategoryChange(e?.target?.value)}
+                className={desktopControlClass}
+              >
+                {builtCategoryOptions?.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Region */}
+            <div className="min-w-[11rem] flex-1">
+              <label htmlFor="desktop-filter-region" className={desktopLabelClass}>
+                {currentLanguage === 'am' ? 'አካባቢ' : 'Region'}
+              </label>
+              <select
+                id="desktop-filter-region"
+                value={localRegion}
+                onChange={(e) => handleRegionChange(e?.target?.value)}
+                className={desktopControlClass}
+              >
+                {builtRegionOptions?.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Price Range */}
+            <div className="min-w-[13rem] flex-1">
+              <label className={desktopLabelClass}>
+                {currentLanguage === 'am' ? 'የዋጋ ክልል (ብር)' : 'Price Range (ETB)'}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  aria-label={t?.minPrice}
+                  value={localFilters?.priceRange?.min}
+                  onChange={(e) => handlePriceChange('min', e?.target?.value)}
+                  className={`${desktopControlClass} min-w-0`}
+                />
+                <span className="text-text-secondary">–</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="1000"
+                  aria-label={t?.maxPrice}
+                  value={localFilters?.priceRange?.max}
+                  onChange={(e) => handlePriceChange('max', e?.target?.value)}
+                  className={`${desktopControlClass} min-w-0`}
+                />
+              </div>
+            </div>
+
+            {/* Sort */}
+            <div className="min-w-[11rem] flex-1">
+              <label htmlFor="desktop-filter-sort" className={desktopLabelClass}>
+                <span className="inline-flex items-center gap-1">
+                  <Icon name="ArrowUpDown" size={14} />
+                  {currentLanguage === 'am' ? 'ደርድር በ' : 'Sort'}
+                </span>
+              </label>
+              <select
+                id="desktop-filter-sort"
+                value={localSort}
+                onChange={(e) => handleSortChange(e?.target?.value)}
+                className={desktopControlClass}
+              >
+                {sortOptions?.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Verification */}
+            <div className="min-w-[11rem]">
+              <label className={desktopLabelClass}>
+                <span className="inline-flex items-center gap-1">
+                  <Icon name="ShieldCheck" size={14} />
+                  {t?.verification}
+                </span>
+              </label>
+              <div className="flex h-10 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleVerificationChange(!localFilters?.verifiedOnly)}
+                  aria-pressed={!!localFilters?.verifiedOnly}
+                  aria-label={t?.verified}
+                  className={`w-10 h-6 rounded-full transition-colors ${localFilters?.verifiedOnly ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`block w-5 h-5 bg-white rounded-full transform transition-transform ${localFilters?.verifiedOnly ? 'translate-x-5' : 'translate-x-1'}`} />
+                </button>
+                <span className="text-xs text-text-secondary">{t?.verified}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="default" onClick={handleApplyFilters}>
+                {t?.apply}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handleClearAll}
+                className="text-text-secondary hover:text-primary"
+              >
+                {t?.clearAll}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Backdrop Overlay */}
       {isOpen && (
         <div
@@ -142,10 +283,10 @@ const FilterPanel = ({
         />
       )}
 
-      {/* Sidebar Drawer */}
+      {/* Mobile Drawer */}
       <div
-        className={`fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-80 max-w-[85vw] flex flex-col bg-surface border-r border-border shadow-warm-lg z-50 transform transition-transform duration-300 ease-in-out lg:sticky lg:left-auto lg:top-14 lg:h-[calc(100vh-4rem)] lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        className={`fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-80 max-w-[85vw] flex flex-col bg-surface border-r border-border shadow-warm-lg z-50 transform transition-transform duration-300 ease-in-out lg:hidden ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Header with Close Button */}
@@ -153,7 +294,7 @@ const FilterPanel = ({
           <h3 className="font-semibold text-text-primary">
             {currentLanguage === 'am' ? 'ማጣሪያዎች' : 'Filters'}
           </h3>
-          <Button variant="ghost" size="icon" onClick={onClose} className="lg:hidden">
+          <Button variant="ghost" size="icon" onClick={onClose}>
             <Icon name="X" size={20} />
           </Button>
         </div>
@@ -233,8 +374,8 @@ const FilterPanel = ({
 
           {/* Sort */}
           <div className="space-y-3">
-            <label className="hidden lg:flex items-center text-xs font-medium text-text-secondary gap-1">
-              <Icon name="ArrowUpDown" size={14} /> Sort
+            <label className="block text-sm font-medium text-text-secondary">
+              {currentLanguage === 'am' ? 'ደርድር በ' : 'Sort'}
             </label>
             <select
               value={localSort}
@@ -248,9 +389,11 @@ const FilterPanel = ({
           </div>
 
           {/* Verification */}
-          <div className="space-y-3 lg:space-y-1 lg:w-auto lg:flex lg:items-center lg:h-[58px] lg:pl-2">
-            <label className="hidden lg:flex items-center text-xs font-medium text-text-secondary gap-1 mr-2">
-              <Icon name="ShieldCheck" size={14} /> {t?.verification}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-text-secondary">
+              <span className="inline-flex items-center gap-1">
+                <Icon name="ShieldCheck" size={14} /> {t?.verification}
+              </span>
             </label>
             <div className="flex items-center gap-2">
               <span className="text-xs text-text-secondary">{t?.verified}</span>
@@ -266,18 +409,8 @@ const FilterPanel = ({
 
         </div>
 
-        {/* Desktop Footer */}
-        <div className="hidden lg:flex gap-2 border-t border-border p-4">
-          <Button variant="default" className="flex-1" onClick={handleApplyFilters}>
-            {t?.apply}
-          </Button>
-          <Button variant="ghost" onClick={handleClearAll} className="text-text-secondary hover:text-primary">
-            {t?.clearAll}
-          </Button>
-        </div>
-
         {/* Mobile Footer */}
-        <div className="lg:hidden sticky bottom-0 bg-surface border-t border-border p-4 space-y-2">
+        <div className="sticky bottom-0 bg-surface border-t border-border p-4 space-y-2">
           <Button variant="default" className="w-full" onClick={() => { handleApplyFilters(); onClose(); }}>
             {currentLanguage === 'am' ? 'ማጣሪያዎችን ተግብር' : 'Apply Filters'}
           </Button>
