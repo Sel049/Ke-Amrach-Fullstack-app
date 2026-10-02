@@ -198,10 +198,7 @@ const LandingPage = () => {
       </main>
 
       <footer className="px-6 md:px-10 lg:px-16 py-6 border-t bg-white text-sm text-gray-600">
-        <div className="flex items-center justify-between">
-          <span>{t.footer}</span>
-          <a href="/app" className="text-emerald-700 hover:underline">Go to App →</a>
-        </div>
+        <span>{t.footer}</span>
       </footer>
     </div>
   );

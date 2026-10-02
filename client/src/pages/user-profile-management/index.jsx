@@ -7,10 +7,8 @@ import AccountInformation from './components/AccountInformation';
 import RoleSpecificSection from './components/RoleSpecificSection';
 import VerificationSection from './components/VerificationSection';
 import OrderHistorySection from './components/OrderHistorySection';
-import SecuritySection from './components/SecuritySection';
 import CertificationManagement from './components/CertificationManagement';
 import Icon from '../../components/AppIcon';
-import Button from '../../components/ui/Button';
 import { useLanguage } from '../../hooks/useLanguage.jsx';
 
 const UserProfileManagement = () => {
@@ -289,12 +287,6 @@ const UserProfileManagement = () => {
       label: 'Order History',
       labelAm: 'የትዕዛዝ ታሪክ',
       icon: 'History'
-    },
-    {
-      id: 'security',
-      label: 'Security',
-      labelAm: 'ደህንነት',
-      icon: 'Lock'
     }
   ];
 
@@ -343,12 +335,6 @@ const UserProfileManagement = () => {
             currentLanguage={currentLanguage}
           />
         );
-      case 'security':
-        return (
-          <SecuritySection
-            currentLanguage={currentLanguage}
-          />
-        );
       default:
         return null;
     }
@@ -376,8 +362,8 @@ const UserProfileManagement = () => {
             </h1>
             <p className="mt-2 text-text-secondary">
               {getLabel(
-                'Manage your account information, verification documents, and security settings.',
-                'የመለያ መረጃዎን፣ የማረጋገጫ ሰነዶችን እና የደህንነት ቅንብሮችን ያስተዳድሩ።'
+                'Manage your account information and verification documents.',
+                'የመለያ መረጃዎንና የማረጋገጫ ሰነዶችን ያስተዳድሩ።'
               )}
             </p>
           </div>
@@ -464,28 +450,6 @@ const UserProfileManagement = () => {
           {/* Tab Content */}
           <div className="space-y-6">
             {renderTabContent()}
-          </div>
-
-          {/* Quick Actions (Mobile) */}
-          <div className="fixed z-40 lg:hidden bottom-4 right-4">
-            <div className="flex flex-col space-y-2">
-              <Button
-                variant="default"
-                size="icon"
-                className="w-12 h-12 rounded-full shadow-warm-lg"
-                onClick={() => setActiveTab('verification')}
-              >
-                <Icon name="Shield" size={20} />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="w-12 h-12 rounded-full shadow-warm-lg bg-surface"
-                onClick={() => setActiveTab('security')}
-              >
-                <Icon name="Lock" size={20} />
-              </Button>
-            </div>
           </div>
         </div>
     </AuthenticatedLayout>
