@@ -95,6 +95,10 @@ const FilterPanel = ({
   // Shared styling for the horizontal desktop filter bar
   const desktopLabelClass = 'mb-1 block text-xs font-medium text-text-secondary';
   const desktopControlClass = 'h-10 w-full rounded-full border border-border bg-white px-4 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary';
+  // Min/max price boxes deliberately use a normal (non-pill) border — the curved
+  // `rounded-full` border made the digits hard to read. `tabular-nums` keeps the
+  // numbers aligned while typing and `flex-1` gives both boxes equal width.
+  const priceInputClass = 'h-10 min-w-0 flex-1 rounded-lg border border-border bg-white px-3 text-sm text-text-primary tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary';
 
   const handlePriceChange = (type, value) => {
     setLocalFilters(prev => ({
@@ -189,7 +193,7 @@ const FilterPanel = ({
             </div>
 
             {/* Price Range */}
-            <div className="min-w-[13rem] flex-1">
+            <div className="min-w-[17rem] flex-1">
               <label className={desktopLabelClass}>
                 {currentLanguage === 'am' ? 'የዋጋ ክልል (ብር)' : 'Price Range (ETB)'}
               </label>
@@ -201,7 +205,7 @@ const FilterPanel = ({
                   aria-label={t?.minPrice}
                   value={localFilters?.priceRange?.min}
                   onChange={(e) => handlePriceChange('min', e?.target?.value)}
-                  className={`${desktopControlClass} min-w-0`}
+                  className={priceInputClass}
                 />
                 <span className="text-text-secondary">–</span>
                 <input
@@ -211,7 +215,7 @@ const FilterPanel = ({
                   aria-label={t?.maxPrice}
                   value={localFilters?.priceRange?.max}
                   onChange={(e) => handlePriceChange('max', e?.target?.value)}
-                  className={`${desktopControlClass} min-w-0`}
+                  className={priceInputClass}
                 />
               </div>
             </div>
@@ -356,7 +360,7 @@ const FilterPanel = ({
                   placeholder="0"
                   value={localFilters?.priceRange?.min}
                   onChange={(e) => handlePriceChange('min', e?.target?.value)}
-                  className="w-full h-10 px-4 border border-border rounded-full text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full h-10 px-3 border border-border rounded-lg text-sm text-text-primary tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
               <div>
@@ -366,7 +370,7 @@ const FilterPanel = ({
                   placeholder="1000"
                   value={localFilters?.priceRange?.max}
                   onChange={(e) => handlePriceChange('max', e?.target?.value)}
-                  className="w-full h-10 px-4 border border-border rounded-full text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full h-10 px-3 border border-border rounded-lg text-sm text-text-primary tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
             </div>

@@ -94,7 +94,10 @@ const LandingPage = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-emerald-50">
       <GlobalHeader currentLanguage={lang} onLanguageChange={setLang} publicOnly={true} />
 
-      <main className="flex-1">
+      {/* The header above is `position: fixed`, so it is taken out of normal
+          flow — reserve its height (h-16 / lg:h-18) or the hero heading
+          renders underneath it. Mirrors the offset used in AppShell. */}
+      <main className="flex-1 pt-16 lg:pt-18">
         <section className="relative overflow-hidden px-6 md:px-10 lg:px-16 py-14 md:py-20 grid md:grid-cols-2 gap-10 items-center">
           <svg className="pointer-events-none absolute -top-10 -right-10 opacity-20" width="360" height="360" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden>
             <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
