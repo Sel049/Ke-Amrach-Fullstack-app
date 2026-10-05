@@ -1,4 +1,6 @@
 import { pool } from '../config/database.js';
+import { isCloudinaryConfigured, uploadToCloudinary } from '../utils/cloudinary.js';
+import { unlink } from 'fs/promises';
 
 // Detect if a column exists on a table in the current database
 async function columnExists(tableName, columnName) {
@@ -870,8 +872,21 @@ export const uploadImage = async (req, res) => {
       return res.status(400).json({ error: "No image file provided" });
     }
 
-    // Generate the URL for the uploaded image
-    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    // Prefer Cloudinary (persistent CDN) when configured; fall back to local disk otherwise.
+    let imageUrl;
+    if (isCloudinaryConfigured()) {
+      try {
+        const { secure_url } = await uploadToCloudinary(req.file.path, 'ke_amrach/listings');
+        imageUrl = secure_url;
+        // Remove the local temp copy now that it's safely on Cloudinary.
+        await unlink(req.file.path).catch(() => {});
+      } catch (e) {
+        console.warn('Cloudinary upload failed, falling back to local disk:', e.message);
+        imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+      }
+    } else {
+      imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
 
     console.log('Image uploaded successfully:', imageUrl);
 
@@ -1117,10 +1132,23 @@ export const addListingImage = async (req, res) => {
     // Determine image URL - either from file upload or direct URL
     let imageUrl;
     if (file) {
-      // Store a public URL that matches how the server serves files
       const base = `${req.protocol}://${req.get('host')}`;
-      const filename = file.filename || (file.path ? file.path.split(/[\\/]/).pop() : null);
-      imageUrl = filename ? `${base}/uploads/${filename}` : `${base}/uploads/${file.originalname}`;
+      const localUrl = () => {
+        const filename = file.filename || (file.path ? file.path.split(/[\\/]/).pop() : null);
+        return filename ? `${base}/uploads/${filename}` : `${base}/uploads/${file.originalname}`;
+      };
+      if (isCloudinaryConfigured()) {
+        try {
+          const { secure_url } = await uploadToCloudinary(file.path, 'ke_amrach/listings');
+          imageUrl = secure_url;
+          await unlink(file.path).catch(() => {});
+        } catch (e) {
+          console.warn('Cloudinary upload failed, falling back to local disk:', e.message);
+          imageUrl = localUrl();
+        }
+      } else {
+        imageUrl = localUrl();
+      }
     } else if (url) {
       imageUrl = url;
     } else {
