@@ -84,9 +84,9 @@ const FarmerOrders = () => {
     <AuthenticatedLayout>
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-start py-4">
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center border rounded-lg bg-input px-2">
-              <Icon name="Search" size={16} className="text-text-secondary" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
+            <div className="flex items-center border rounded-lg bg-input px-2 w-full sm:w-56 sm:shrink-0">
+              <Icon name="Search" size={16} className="text-text-secondary shrink-0" />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -94,12 +94,12 @@ const FarmerOrders = () => {
                 className="bg-transparent px-2 py-1 text-sm outline-none"
               />
             </div>
-            <div className="flex border rounded-lg overflow-hidden">
+            <div className="flex border rounded-lg overflow-x-auto sm:overflow-visible sm:shrink-0">
               {['all','pending','confirmed','shipped','completed','cancelled'].map((st) => (
                 <button
                   key={st}
                   onClick={() => setStatus(st)}
-                  className={`px-3 py-1 text-sm ${status===st ? 'bg-primary text-white' : 'text-text-secondary hover:bg-muted'}`}
+                  className={`px-2.5 py-1.5 sm:px-3 sm:py-1 text-xs sm:text-sm whitespace-nowrap shrink-0 ${status===st ? 'bg-primary text-white' : 'text-text-secondary hover:bg-muted'}`}
                 >
                   {language==='am' ? (statusPills[st]?.labelAm || 'ሁሉ') : (statusPills[st]?.labelEn || 'All')}
                 </button>

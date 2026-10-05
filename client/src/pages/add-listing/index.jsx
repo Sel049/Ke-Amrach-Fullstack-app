@@ -12,7 +12,6 @@ import Icon from '../../components/AppIcon';
 import axios from 'axios';
 import { auth } from '../../firebase';
 import { useLanguage } from '../../hooks/useLanguage.jsx';
-import DebugInfo from '../../components/DebugInfo.jsx';
 
 const AddListing = () => {
   const { language } = useLanguage();
@@ -26,7 +25,6 @@ const AddListing = () => {
   const [isDraft, setIsDraft] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingListingId, setEditingListingId] = useState(null);
-  const [showDebug, setShowDebug] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -834,17 +832,6 @@ const AddListing = () => {
             </div>
           </div>
         </div>
-        
-        {/* Debug Info */}
-        <DebugInfo isVisible={showDebug} />
-        
-        {/* Debug Toggle Button */}
-        <button
-          onClick={() => setShowDebug(!showDebug)}
-          className="fixed bottom-4 left-4 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg z-50"
-        >
-          {showDebug ? 'Hide Debug' : 'Show Debug'}
-        </button>
     </AuthenticatedLayout>
   );
 };
