@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { auth } from '../../../firebase';
+import Toast from '../../../components/ui/Toast.jsx';
 
 const ImagesSection = ({ formData, formErrors, onUpdate, currentLanguage }) => {
   const [uploading, setUploading] = useState(false);
+  const [toast, setToast] = useState(null); // { type: 'success'|'error', text }
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
@@ -11,17 +13,23 @@ const ImagesSection = ({ formData, formErrors, onUpdate, currentLanguage }) => {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert(currentLanguage === 'en'
-        ? 'Please select a valid image file'
-        : 'እባክዎን ትክክለኛ የምስል ፋይል ይምረጡ');
+      setToast({
+        type: 'error',
+        text: currentLanguage === 'en'
+          ? 'Please select a valid image file'
+          : 'እባክዎን ትክክለኛ የምስል ፋይል ይምረጡ'
+      });
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert(currentLanguage === 'en'
-        ? 'Image size should be less than 5MB'
-        : 'የምስል መጠን 5MB ያነሰ መሆን አለበት');
+      setToast({
+        type: 'error',
+        text: currentLanguage === 'en'
+          ? 'Image size should be less than 5MB'
+          : 'የምስል መጠን 5MB ያነሰ መሆን አለበት'
+      });
       return;
     }
 
@@ -34,7 +42,11 @@ const ImagesSection = ({ formData, formErrors, onUpdate, currentLanguage }) => {
       if (!currentUser) {
         const devToken = localStorage.getItem('authToken');
         if (!devToken) {
-          alert(currentLanguage === 'en' ? 'Please log in again.' : 'እባክዎን እንደገና ይግቡ።');
+          setUploading(false);
+          setToast({
+            type: 'error',
+            text: currentLanguage === 'en' ? 'Please log in again.' : 'እባክዎን እንደገና ይግቡ።'
+          });
           return;
         }
         idToken = devToken;
@@ -60,14 +72,20 @@ const ImagesSection = ({ formData, formErrors, onUpdate, currentLanguage }) => {
       const newImages = [...(formData.images || []), uploadedUrl];
       onUpdate('images', newImages);
 
-      alert(currentLanguage === 'en'
-        ? 'Image uploaded successfully!'
-        : 'ምስሉ በተሳካ ሁኔታ ተጭኗል!');
+      setToast({
+        type: 'success',
+        text: currentLanguage === 'en'
+          ? 'Image uploaded successfully!'
+          : 'ምስሉ በተሳካ ሁኔታ ተጭኗል!'
+      });
     } catch (error) {
-      console.error('Image upload failed:', error);
-      alert(currentLanguage === 'en'
-        ? 'Failed to add image. Please try again.'
-        : 'ምስሉን መጨመር አልተሳካም። እባክዎን እንደገና ይሞክሩ።');
+      if (import.meta.env.DEV) console.error('Image upload failed:', error);
+      setToast({
+        type: 'error',
+        text: currentLanguage === 'en'
+          ? 'Failed to add image. Please try again.'
+          : 'ምስሉን መጨመር አልተሳካም። እባክዎን እንደገና ይሞክሩ።'
+      });
     } finally {
       setUploading(false);
     }
@@ -80,6 +98,11 @@ const ImagesSection = ({ formData, formErrors, onUpdate, currentLanguage }) => {
 
   return (
     <div className="space-y-6">
+      <Toast
+        type={toast?.type}
+        message={toast?.text}
+        onClose={() => setToast(null)}
+      />
       <div>
         <h2 className="text-xl font-semibold text-foreground mb-4">
           {currentLanguage === 'en' ? 'Product Images' : 'የምርት ምስሎች'}

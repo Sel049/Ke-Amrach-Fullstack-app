@@ -9,6 +9,7 @@ import LocationSection from './components/LocationSection';
 import ProgressIndicator from './components/ProgressIndicator';
 import Button from '../../components/ui/Button';
 import Icon from '../../components/AppIcon';
+import Toast from '../../components/ui/Toast.jsx';
 import axios from 'axios';
 import { auth } from '../../firebase';
 import { useLanguage } from '../../hooks/useLanguage.jsx';
@@ -25,6 +26,7 @@ const AddListing = () => {
   const [isDraft, setIsDraft] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingListingId, setEditingListingId] = useState(null);
+  const [toast, setToast] = useState(null); // { type: 'success'|'error'|'warning'|'info', text }
 
   // Form state
   const [formData, setFormData] = useState({
@@ -112,7 +114,6 @@ const AddListing = () => {
       const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
       
       if (!isAuthenticated) {
-        console.error('User not authenticated');
         navigate('/authentication-login-register');
         return;
       }
@@ -138,9 +139,14 @@ const AddListing = () => {
         });
       }
     } catch (error) {
-      console.error('Failed to load listing for edit:', error);
-      console.error('Error details:', error.response?.data || error.message);
-      alert(`Failed to load listing for editing: ${error.response?.data?.error || error.message}`);
+      if (import.meta.env.DEV) {
+        console.error('Failed to load listing for edit:', error);
+        console.error('Error details:', error.response?.data || error.message);
+      }
+      setToast({
+        type: 'error',
+        text: `Failed to load listing for editing: ${error.response?.data?.error || error.message}`
+      });
     }
   };
 
@@ -152,7 +158,6 @@ const AddListing = () => {
       const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
       
       if (!isAuthenticated) {
-        console.error('User not authenticated');
         navigate('/authentication-login-register');
         return;
       }
@@ -179,16 +184,22 @@ const AddListing = () => {
         });
         
         // Show success message
-        if (currentLanguage === 'am') {
-          alert('የዝርዝር ውሂብ ተጭኗል። አሁን አዲስ ዝርዝር መፍጠር ይችላሉ።');
-        } else {
-          alert('Listing data loaded successfully. You can now create a new listing.');
-        }
+        setToast({
+          type: 'success',
+          text: currentLanguage === 'en'
+            ? 'Listing data loaded successfully. You can now create a new listing.'
+            : 'የዝርዝር ውሂብ ተጭኗል። አሁን አዲስ ዝርዝር መፍጠር ይችላሉ።'
+        });
       }
     } catch (error) {
-      console.error('Failed to load listing for duplication:', error);
-      console.error('Error details:', error.response?.data || error.message);
-      alert(`Failed to load listing for duplication: ${error.response?.data?.error || error.message}`);
+      if (import.meta.env.DEV) {
+        console.error('Failed to load listing for duplication:', error);
+        console.error('Error details:', error.response?.data || error.message);
+      }
+      setToast({
+        type: 'error',
+        text: `Failed to load listing for duplication: ${error.response?.data?.error || error.message}`
+      });
     }
   };
 
@@ -275,7 +286,6 @@ const AddListing = () => {
       const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
       
       if (!isAuthenticated) {
-        console.error('User not authenticated');
         navigate('/authentication-login-register');
         return;
       }
@@ -293,7 +303,7 @@ const AddListing = () => {
           throw new Error('No authentication token available');
         }
       } catch (authError) {
-        console.error('Auth error:', authError);
+        if (import.meta.env.DEV) console.error('Auth error:', authError);
         if (authToken) {
           authHeader = `Bearer ${authToken}`;
         } else {
@@ -316,24 +326,18 @@ const AddListing = () => {
 
       // Basic validation for draft - ensure we have at least a name
       if (!listingData.name || listingData.name.trim() === '') {
-        alert(currentLanguage === 'en' 
-          ? 'Please enter a product name before saving as draft.' 
-          : 'እባክዎ እንደ ረቂቅ ከመቀመጥ በፊት የምርት ስም ያስገቡ።');
+        setToast({
+          type: 'error',
+          text: currentLanguage === 'en'
+            ? 'Please enter a product name before saving as draft.'
+            : 'እባክዎ እንደ ረቂቅ ከመቀመጥ በፊት የምርት ስም ያስገቡ።'
+        });
         return;
       }
-
-      // Debug logging
-      console.log('Saving draft with data:', listingData);
-      console.log('API endpoint:', `${API_BASE}/farmers/listings`);
-      console.log('Auth header present:', !!authHeader);
-      console.log('Auth header value:', authHeader ? authHeader.substring(0, 20) + '...' : 'None');
-      console.log('User authenticated:', isAuthenticated);
-      console.log('User role:', userRole);
 
       let response;
       if (isEditMode && editingListingId) {
         // Update existing listing
-        console.log('Updating existing listing:', editingListingId);
         response = await axios.put(`${API_BASE}/farmers/listings/${editingListingId}`, listingData, {
           headers: {
             'Content-Type': 'application/json',
@@ -342,7 +346,6 @@ const AddListing = () => {
         });
       } else {
         // Create new draft
-        console.log('Creating new draft listing');
         response = await axios.post(`${API_BASE}/farmers/listings`, listingData, {
           headers: {
             'Content-Type': 'application/json',
@@ -356,15 +359,11 @@ const AddListing = () => {
         
         // If image URLs exist, attach all images to the draft
         if (listingId && Array.isArray(formData.images) && formData.images.length > 0) {
-          console.log('Attaching images to draft listing:', formData.images);
-          
           for (let i = 0; i < formData.images.length; i++) {
             try {
               const imageUrl = formData.images[i];
-              console.log(`Attaching image ${i + 1}/${formData.images.length} to draft:`, imageUrl);
-              
-              const attachResponse = await axios.post(`${API_BASE}/farmers/listings/${listingId}/images`, 
-                { url: imageUrl }, 
+              await axios.post(`${API_BASE}/farmers/listings/${listingId}/images`,
+                { url: imageUrl },
                 {
                   headers: {
                     'Content-Type': 'application/json',
@@ -373,19 +372,21 @@ const AddListing = () => {
                 }
               );
               
-              console.log(`Draft image ${i + 1} attached successfully:`, attachResponse.data);
             } catch (attachErr) {
-              console.error(`Failed to attach image ${i + 1} to draft:`, attachErr);
+              if (import.meta.env.DEV) console.error(`Failed to attach image ${i + 1} to draft:`, attachErr);
               // Continue with other images even if one fails
             }
           }
         }
         
-        alert(currentLanguage === 'en' ? 'Draft saved successfully!' : 'ረቂቁ በተሳካ ሁኔታ ተቀምጧል!');
-        navigate('/farmer-my-listings');
+        setToast({
+          type: 'success',
+          text: currentLanguage === 'en' ? 'Draft saved successfully!' : 'ረቂቁ በተሳካ ሁኔታ ተቀምጧል!'
+        });
+        window.setTimeout(() => navigate('/farmer-my-listings'), 1200);
       }
     } catch (error) {
-      console.error('Failed to save draft:', error);
+      if (import.meta.env.DEV) console.error('Failed to save draft:', error);
       
       // Provide more specific error messages
       let errorMessage = currentLanguage === 'en' ? 'Failed to save draft. Please try again.' : 'ረቂቁ ማስቀመጥ አልተሳካም። እባክዎን እንደገና ይሞክሩ።';
@@ -395,11 +396,13 @@ const AddListing = () => {
         const status = error.response.status;
         const serverMessage = error.response.data?.error || error.response.data?.message;
         
-        console.error('Draft save error details:', {
-          status,
-          data: error.response.data,
-          message: serverMessage
-        });
+        if (import.meta.env.DEV) {
+          console.error('Draft save error details:', {
+            status,
+            data: error.response.data,
+            message: serverMessage
+          });
+        }
         
         if (status === 401) {
           errorMessage = currentLanguage === 'en' ? 'Authentication failed. Please log in again.' : 'ማረጋገጫ አልተሳካም። እባክዎ እንደገና ይግቡ።';
@@ -414,17 +417,17 @@ const AddListing = () => {
         }
       } else if (error.request) {
         // Network error
-        console.error('Draft save network error:', error.request);
+        if (import.meta.env.DEV) console.error('Draft save network error:', error.request);
         errorMessage = currentLanguage === 'en' ? 'Network error. Please check your connection and try again.' : 'የኔትዎርክ ስህተት። እባክዎ ግንኙነትዎን ያረጋግጡ እና እንደገና ይሞክሩ።';
       } else {
         // Other error
-        console.error('Draft save other error:', error.message);
+        if (import.meta.env.DEV) console.error('Draft save other error:', error.message);
         errorMessage = currentLanguage === 'en' 
           ? `Error: ${error.message}` 
           : `ስህተት: ${error.message}`;
       }
       
-      alert(errorMessage);
+      setToast({ type: 'error', text: errorMessage });
     } finally {
       setIsSubmitting(false);
       setIsDraft(false);
@@ -446,7 +449,6 @@ const AddListing = () => {
       const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
       
       if (!isAuthenticated) {
-        console.error('User not authenticated');
         navigate('/authentication-login-register');
         return;
       }
@@ -464,7 +466,7 @@ const AddListing = () => {
           throw new Error('No authentication token available');
         }
       } catch (authError) {
-        console.error('Auth error:', authError);
+        if (import.meta.env.DEV) console.error('Auth error:', authError);
         if (authToken) {
           authHeader = `Bearer ${authToken}`;
         } else {
@@ -482,14 +484,6 @@ const AddListing = () => {
         availableQuantity: Number(formData.availableQuantity),
         location: formData.region
       };
-
-      // Debug logging for publish
-      console.log('Publishing listing with data:', listingData);
-      console.log('API endpoint:', `${API_BASE}/farmers/listings`);
-      console.log('Auth header present:', !!authHeader);
-      console.log('Auth header value:', authHeader ? authHeader.substring(0, 20) + '...' : 'None');
-      console.log('User authenticated:', isAuthenticated);
-      console.log('User role:', userRole);
 
       let response;
       let listingId;
@@ -518,25 +512,13 @@ const AddListing = () => {
 
         // If image URLs exist, attach all images
         if (listingId && Array.isArray(formData.images) && formData.images.length > 0) {
-          console.log('=== IMAGE ATTACHMENT DEBUG ===');
-          console.log('Listing ID:', listingId);
-          console.log('Images to attach:', formData.images);
-          console.log('Number of images:', formData.images.length);
-          console.log('API Base URL:', API_BASE);
-          console.log('Auth header present:', !!authHeader);
-          
-          let successfulAttachments = 0;
           let failedAttachments = 0;
-          
+
           for (let i = 0; i < formData.images.length; i++) {
             try {
               const imageUrl = formData.images[i];
-              console.log(`\n--- Attaching image ${i + 1}/${formData.images.length} ---`);
-              console.log('Image URL:', imageUrl);
-              console.log('Endpoint:', `${API_BASE}/farmers/listings/${listingId}/images`);
-              
-              const attachResponse = await axios.post(`${API_BASE}/farmers/listings/${listingId}/images`, 
-                { url: imageUrl }, 
+              await axios.post(`${API_BASE}/farmers/listings/${listingId}/images`,
+                { url: imageUrl },
                 {
                   headers: {
                     'Content-Type': 'application/json',
@@ -544,50 +526,33 @@ const AddListing = () => {
                   }
                 }
               );
-              
-              console.log(`✅ Image ${i + 1} attached successfully:`, attachResponse.data);
-              successfulAttachments++;
             } catch (attachErr) {
-              console.error(`❌ Failed to attach image ${i + 1}:`, attachErr);
-              console.error('Image attach error details:', {
-                status: attachErr.response?.status,
-                data: attachErr.response?.data,
-                message: attachErr.message,
-                url: attachErr.config?.url,
-                method: attachErr.config?.method
-              });
+              if (import.meta.env.DEV) console.error(`Failed to attach image ${i + 1}:`, attachErr);
               failedAttachments++;
               // Continue with other images even if one fails
             }
           }
-          
-          console.log(`=== IMAGE ATTACHMENT SUMMARY ===`);
-          console.log(`Successful: ${successfulAttachments}/${formData.images.length}`);
-          console.log(`Failed: ${failedAttachments}/${formData.images.length}`);
-          console.log('=== END IMAGE ATTACHMENT DEBUG ===\n');
-          
-          // Show user feedback about image attachment
+
           if (failedAttachments > 0) {
-            console.warn(`Warning: ${failedAttachments} images failed to attach. Listing was created but some images may not be visible.`);
+            setToast({
+              type: 'warning',
+              text: currentLanguage === 'en'
+                ? `Listing was created, but ${failedAttachments} image(s) could not be attached.`
+                : `ዝርዝሩ ተፈጥሯል፣ ነገር ግን ${failedAttachments} ምስል(ዎች) ማያያዝ አልተቻለም።`
+            });
           }
-        } else {
-          console.log('No images to attach:', {
-            listingId,
-            hasImages: Array.isArray(formData.images),
-            imageCount: formData.images?.length || 0,
-            images: formData.images
-          });
         }
 
-        alert(
-          currentLanguage === 'en'
+        setToast({
+          type: 'success',
+          text: currentLanguage === 'en'
             ? (isEditMode ? 'Listing updated successfully!' : 'Listing published successfully!')
             : (isEditMode ? 'ዝርዝሩ በተሳካ ሁኔታ ተሻሽሏል!' : 'ዝርዝሩ በተሳካ ሁኔታ ታትሟል!')
-        );
-        navigate('/farmer-my-listings');
+        });
+        window.setTimeout(() => navigate('/farmer-my-listings'), 1200);
       }
     } catch (error) {
-      console.error('Failed to publish listing:', error);
+      if (import.meta.env.DEV) console.error('Failed to publish listing:', error);
       
       // Provide more specific error messages
       let errorMessage = currentLanguage === 'en' ? 'Failed to publish listing. Please try again.' : 'ዝርዝሩ ማተም አልተሳካም። እባክዎን እንደገና ይሞክሩ።';
@@ -597,11 +562,13 @@ const AddListing = () => {
         const status = error.response.status;
         const serverMessage = error.response.data?.error || error.response.data?.message;
         
-        console.error('Server error details:', {
-          status,
-          data: error.response.data,
-          message: serverMessage
-        });
+        if (import.meta.env.DEV) {
+          console.error('Server error details:', {
+            status,
+            data: error.response.data,
+            message: serverMessage
+          });
+        }
         
         if (status === 401) {
           errorMessage = currentLanguage === 'en' ? 'Authentication failed. Please log in again.' : 'ማረጋገጫ አልተሳካም። እባክዎ እንደገና ይግቡ።';
@@ -616,17 +583,17 @@ const AddListing = () => {
         }
       } else if (error.request) {
         // Network error
-        console.error('Network error:', error.request);
+        if (import.meta.env.DEV) console.error('Network error:', error.request);
         errorMessage = currentLanguage === 'en' ? 'Network error. Please check your connection and try again.' : 'የኔትዎርክ ስህተት። እባክዎ ግንኙነትዎን ያረጋግጡ እና እንደገና ይሞክሩ።';
       } else {
         // Other error
-        console.error('Other error:', error.message);
+        if (import.meta.env.DEV) console.error('Other error:', error.message);
         errorMessage = currentLanguage === 'en' 
           ? `Error: ${error.message}` 
           : `ስህተት: ${error.message}`;
       }
       
-      alert(errorMessage);
+      setToast({ type: 'error', text: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -694,6 +661,11 @@ const AddListing = () => {
 
   return (
     <AuthenticatedLayout>
+      <Toast
+        type={toast?.type}
+        message={toast?.text}
+        onClose={() => setToast(null)}
+      />
       <div className="max-w-4xl px-4 py-6 mx-auto sm:px-6 lg:px-8">
           {/* Simple navigation breadcrumb */}
           <div className="mb-6">
