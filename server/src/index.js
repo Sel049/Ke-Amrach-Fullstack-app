@@ -18,6 +18,10 @@ import { getSettingValue } from "./services/settingsService.js";
 // App
 const app = express();
 
+// Behind a reverse proxy (Render, nginx, etc.) trust the X-Forwarded-* headers so
+// req.protocol / req.get('host') build correct absolute URLs for uploaded files.
+app.set('trust proxy', 1);
+
 // CORS configuration (must run BEFORE other middleware)
 const corsOptions = {
   origin: function (origin, callback) {

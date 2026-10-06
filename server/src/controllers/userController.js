@@ -1,4 +1,6 @@
 import { pool } from '../config/database.js';
+import { unlink } from 'fs/promises';
+import { isCloudinaryConfigured, uploadToCloudinary } from '../utils/cloudinary.js';
 
 export const upsertUser = async (req, res) => {
   const uid = req.user.uid;
@@ -247,7 +249,23 @@ export const uploadMyAvatar = async (req, res) => {
       INDEX (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    // Prefer Cloudinary (persistent CDN) when configured; fall back to local disk otherwise.
+    // Mirrors the listing-image flow in farmerController.uploadImage so avatars persist
+    // across deploys/instances instead of relying on Render's ephemeral local disk.
+    let imageUrl;
+    if (isCloudinaryConfigured()) {
+      try {
+        const { secure_url } = await uploadToCloudinary(req.file.path, 'ke_amrach/avatars');
+        imageUrl = secure_url;
+        // Remove the local temp copy now that it's safely on Cloudinary.
+        await unlink(req.file.path).catch(() => {});
+      } catch (e) {
+        console.warn('Cloudinary avatar upload failed, falling back to local disk:', e.message);
+        imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+      }
+    } else {
+      imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
 
     // Insert new avatar record
     await pool.query('INSERT INTO user_avatars (user_id, url) VALUES (?, ?)', [userId, imageUrl]);
