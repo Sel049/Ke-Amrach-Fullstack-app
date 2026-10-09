@@ -16,10 +16,12 @@ export const upsertUser = async (req, res) => {
 
 export const getMe = async (req, res) => {
   const uid = req.user.uid;
-  // Ensure avatars table exists to avoid errors on first run
+  // Ensure avatars table exists to avoid errors on first run.
+  // UNIQUE(user_id) keeps one avatar row per user so uploadMyAvatar's
+  // INSERT ... ON DUPLICATE KEY UPDATE updates in place.
   await pool.query(`CREATE TABLE IF NOT EXISTS user_avatars (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
+    user_id INT NOT NULL UNIQUE,
     url VARCHAR(1024) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -239,10 +241,11 @@ export const uploadMyAvatar = async (req, res) => {
     }
     const userId = userRow.id;
 
-    // Ensure table exists (idempotent)
+    // Ensure table exists (idempotent). UNIQUE(user_id) keeps a single
+    // avatar row per user so the upsert below updates in place.
     await pool.query(`CREATE TABLE IF NOT EXISTS user_avatars (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
+      user_id INT NOT NULL UNIQUE,
       url VARCHAR(1024) NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -267,8 +270,13 @@ export const uploadMyAvatar = async (req, res) => {
       imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     }
 
-    // Insert new avatar record
-    await pool.query('INSERT INTO user_avatars (user_id, url) VALUES (?, ?)', [userId, imageUrl]);
+    // Persist the avatar URL — insert a new row, or update the existing
+    // one in place on re-upload (idempotent thanks to UNIQUE user_id).
+    await pool.query(
+      `INSERT INTO user_avatars (user_id, url) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE url = VALUES(url)`,
+      [userId, imageUrl]
+    );
 
     return res.status(201).json({ message: 'Avatar uploaded', avatarUrl: imageUrl });
   } catch (e) {
