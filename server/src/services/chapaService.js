@@ -45,8 +45,9 @@ export class ChapaService {
       ...(Object.keys(customization).length > 0 && { customization }),
     };
 
+    const initUrl = `${this.baseUrl}/payments/hosted`;
+
     try {
-      const initUrl = `${this.baseUrl}/payments/hosted`;
       const response = await fetch(initUrl, {
         method: 'POST',
         headers: {
@@ -83,8 +84,9 @@ export class ChapaService {
       return this._sandboxVerify(txRef);
     }
 
+    const verifyUrl = `${this.baseUrl}/payments/${encodeURIComponent(txRef)}/verify`;
+
     try {
-      const verifyUrl = `${this.baseUrl}/payments/${encodeURIComponent(txRef)}/verify`;
       const response = await fetch(verifyUrl, {
         method: 'GET',
         headers: {
