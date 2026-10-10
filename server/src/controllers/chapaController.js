@@ -219,6 +219,7 @@ const useNewListingsSchema = await hasColumn('produce_listings', 'farmer_user_id
     try { connection.release(); } catch (_) {}
   }
 };
+
 // ────────────────────────────────────────────────────────────
 // verifyChapaPayment — verifies a Chapa transaction and, when
 // successful, confirms the payment + order.
@@ -333,6 +334,14 @@ export const verifyChapaPayment = async (req, res) => {
 export const handleChapaWebhook = async (req, res) => {
   try {
     const payload = req.body || {};
+
+    // Verify the Chapa signature when a webhook secret is configured.
+    // verifyWebhookSignature returns true in dev when no secret is set.
+    const signature = req.headers['chapa-signature'] || req.headers['x-chapa-signature'];
+    if (!chapaService.verifyWebhookSignature(payload, signature)) {
+      return res.status(401).json({ success: false, error: 'Invalid signature' });
+    }
+
     const data = payload.data || payload;
     const txRef = data.tx_ref || data.trx_ref;
     const chapaReference = data.reference || data.chapa_reference || null;

@@ -6,8 +6,8 @@ dotenv.config();
 const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || '';
 const CHAPA_PUBLIC_KEY = process.env.CHAPA_PUBLIC_KEY || '';
 const CHAPA_WEBHOOK_SECRET = process.env.CHAPA_WEBHOOK_SECRET || '';
-const CHAPA_API_BASE = process.env.CHAPA_API_BASE || 'https://api.chapa.co/v1';
-const CHAPA_SANDBOX_BASE = process.env.CHAPA_SANDBOX_BASE || 'https://sandbox.chapa.co/v1';
+const CHAPA_API_BASE = process.env.CHAPA_API_BASE || 'https://api.chapa.global/v2';
+const CHAPA_SANDBOX_BASE = process.env.CHAPA_SANDBOX_BASE || 'https://api.chapa.global/v2';
 
 /**
  * Chapa Service — encapsulates communication with the Chapa API.
@@ -25,7 +25,9 @@ export class ChapaService {
    * Initialize a Chapa checkout transaction.
    * Returns { checkoutUrl, txRef, secretKey } or sandbox mock data.
    */
+
   async initializeTransaction({ amount, currency, email, firstName, lastName, phone, txRef, callbackUrl, returnUrl, customization = {} }) {
+    // Sandbox fallback when no real credentials are configured
     if (!CHAPA_SECRET_KEY) {
       return this._sandboxInitialize({ amount, currency, email, firstName, lastName, txRef, callbackUrl, returnUrl });
     }
@@ -44,7 +46,7 @@ export class ChapaService {
     };
 
     try {
-      const response = await fetch(`${this.baseUrl}/transaction/initialize`, {
+      const response = await fetch(`${this.baseUrl}/payments/hosted`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -61,9 +63,9 @@ export class ChapaService {
       const data = await response.json();
       return {
         success: true,
-        checkoutUrl: data.data?.checkout_url || data.data?.checkoutUrl,
+        checkoutUrl: data.data?.checkout_url,
         txRef: data.data?.tx_ref || txRef,
-        chapaReference: data.data?.reference || data.data?.chapa_reference,
+        chapaReference: data.data?.reference,
       };
     } catch (error) {
       console.error('Error initializing Chapa transaction:', error.message);
@@ -81,7 +83,7 @@ export class ChapaService {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/transaction/verify/${encodeURIComponent(txRef)}`, {
+      const response = await fetch(`${this.baseUrl}/payments/verify/${encodeURIComponent(txRef)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
