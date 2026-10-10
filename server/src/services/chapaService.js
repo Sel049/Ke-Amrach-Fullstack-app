@@ -46,7 +46,8 @@ export class ChapaService {
     };
 
     try {
-      const response = await fetch(`${this.baseUrl}/payments/hosted`, {
+      const initUrl = `${this.baseUrl}/payments/hosted`;
+      const response = await fetch(initUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -68,7 +69,7 @@ export class ChapaService {
         chapaReference: data.data?.reference,
       };
     } catch (error) {
-      console.error('Error initializing Chapa transaction:', error.message);
+      console.error(`Error initializing Chapa transaction (${initUrl}):`, error.message);
       throw error;
     }
   }
@@ -83,7 +84,8 @@ export class ChapaService {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/payments/verify/${encodeURIComponent(txRef)}`, {
+      const verifyUrl = `${this.baseUrl}/payments/${encodeURIComponent(txRef)}/verify`;
+      const response = await fetch(verifyUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +114,7 @@ export class ChapaService {
         raw: data,
       };
     } catch (error) {
-      console.error('Error verifying Chapa transaction:', error.message);
+      console.error(`Error verifying Chapa transaction (${verifyUrl}):`, error.message);
       throw error;
     }
   }
