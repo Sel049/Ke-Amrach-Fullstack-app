@@ -17,7 +17,13 @@ const CHAPA_SANDBOX_BASE = process.env.CHAPA_SANDBOX_BASE || 'https://api.chapa.
 
 export class ChapaService {
   constructor() {
-    this.isSandboxMode = !CHAPA_SECRET_KEY || CHAPA_SECRET_KEY.startsWith('CHASECK_TEST-');
+    // A "test/sandbox" key is anything that is NOT a live CHASECK- key.
+    // Live keys start with "CHASECK-" (no _TEST_). Test keys use
+    // CHASECK_TEST-, CHAPA_TEST_PRIV_, or CHAPA_TEST_PUB_ prefixes.
+    this.isSandboxMode =
+      !CHAPA_SECRET_KEY ||
+      CHAPA_SECRET_KEY.includes('_TEST_') ||
+      CHAPA_SECRET_KEY.startsWith('CHASECK_TEST');
     this.baseUrl = this.isSandboxMode ? CHAPA_SANDBOX_BASE : CHAPA_API_BASE;
   }
 
