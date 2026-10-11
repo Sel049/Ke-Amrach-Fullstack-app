@@ -17,6 +17,7 @@
    - Server: `PORT`, `NODE_ENV`, `ALLOWED_ORIGINS`
    - Security: `JWT_SECRET`, `SESSION_SECRET`, rate limiting vars
    - Email (password reset): `SMTP_*`
+   - Chapa payments: `CHAPA_SECRET_KEY`, `CHAPA_PUBLIC_KEY`, `CHAPA_WEBHOOK_SECRET`, `CHAPA_API_BASE`, `CHAPA_SANDBOX_BASE` (details in the Chapa section below)
    - Optional Firebase Admin: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (PEM with \n)
 
 3. **Database Setup:**

@@ -80,6 +80,7 @@ Ke Amrach is a full-stack e-commerce solution that empowers Ethiopian farmers to
 ### **Development Tools**
 - **ESLint** - Code linting and formatting
 - **Prettier** - Code formatting
+ - **Chapa** - Hosted-checkout payment gateway (Telebirr, CBE Birr, mobile wallets, cards)
 - **Git** - Version control
 - **XAMPP** - Local development environment
 
@@ -208,6 +209,36 @@ KE_AMRACH/
 - `GET /api/orders/farmer` - Get farmer orders
 - `PATCH /api/orders/:id/status` - Update order status
 
+### **Payments (Chapa)**
+- `POST /api/payments/chapa/initialize` - Create order + pending payment, returns Chapa checkout URL (auth required)
+- `GET /api/payments/chapa/verify/:txRef` - Verify a transaction and reconcile order status (auth required)
+- `POST /api/payments/chapa/webhook` - Public Chapa webhook (signature-verified when `CHAPA_WEBHOOK_SECRET` is set)
+
+## 💳 Payments (Chapa)
+
+The checkout flow is powered by [Chapa](https://chapa.co) hosted checkout:
+
+1. **Initialize** – `POST /api/payments/chapa/initialize` creates the order and a `pending` payment row (transaction id `CHAPA-<timestamp>-<rand>`), then calls Chapa `POST {CHAPA_API_BASE}/payments/hosted` and returns the hosted `checkout_url` to the browser.
+2. **Checkout** – The browser is redirected to Chapa's hosted checkout page (Telebirr, CBE Birr, mobile wallets, cards).
+3. **Reconcile** – On completion, the server verifies the transaction via `GET {base}/payments/{tx_ref}/verify` and the public webhook endpoint, marking the payment `completed` and confirming the order.
+
+### Configuration (server-side only)
+
+| Variable | Purpose |
+|---|---|
+| `CHAPA_SECRET_KEY` | Secret/server API key sent as `Authorization: Bearer`. Must be the **secret** key from your Chapa dashboard, not the public/browser key. |
+| `CHAPA_PUBLIC_KEY` | Public/browser API key (kept for browser-side integrations; not used by the current server code). |
+| `CHAPA_WEBHOOK_SECRET` | Shared secret for webhook signature verification. Leave unset in development to skip verification. |
+| `CHAPA_API_BASE` | Live-mode base URL. Default: `https://api.chapa.global/v2` |
+| `CHAPA_SANDBOX_BASE` | Test/sandbox base URL. Default: `https://api.chapa.global/v2` |
+
+**Sandbox detection:** if `CHAPA_SECRET_KEY` is empty, contains `_TEST_`, or starts with `CHASECK_TEST`, the service routes requests to `CHAPA_SANDBOX_BASE` and logs `[SANDBOX]` fallbacks when no key is set at all. Test-mode keys from the Chapa dashboard (e.g. `CHAPA_TEST_PUB_...` / `CHASECK_TEST-...`) are detected this way; live keys route to `CHAPA_API_BASE`.
+
+> ⚠️ **Key troubleshooting (observed 2026-10):**
+> - `401 Invalid API key or User does not exist` → the key value is not recognized by Chapa (typo, wrong key type, or not the right environment's key).
+> - `403 Access denied: Insufficient permissions` → Chapa recognizes the key/account but it lacks permission for the hosted-checkout endpoint. Regenerate the key pair in the dashboard and confirm you are in the correct (test) mode; if it persists, contact Chapa support.
+> - `404 Endpoint not found` → the base URL/endpoint version does not match the key format in use.
+
 ## 🎨 UI/UX Features
 
 - **Modern Design**: Clean, intuitive interface with Tailwind CSS
@@ -253,11 +284,16 @@ KE_AMRACH/
 - Configure environment variables
 - Set up custom domain (optional)
 
-### **Backend Deployment**
-- Deploy to Heroku, DigitalOcean, or AWS
-- Configure production database
-- Set up environment variables
-- Configure Firebase Admin SDK
+### **Backend Deployment (Render)**
+- Deploy the `server/` app to Render (Node.js web service)
+- Configure production MySQL database (`DB_*` env vars)
+- Set required environment variables in Render's **Environment** tab, including Chapa:
+  - `CHAPA_SECRET_KEY` (secret key from Chapa dashboard – test mode `CHAPA_TEST_*`/`CHASECK_TEST*` for staging)
+  - `CHAPA_PUBLIC_KEY`, `CHAPA_WEBHOOK_SECRET`
+  - `CHAPA_API_BASE`, `CHAPA_SANDBOX_BASE` (both default to `https://api.chapa.global/v2`)
+  - `CLOUDINARY_*` (image persistence)
+- Chapa webhook must point at the public URL: `{RENDER_URL}/api/payments/chapa/webhook`
+- Configure Firebase Admin SDK (optional)
 
 ### **Development Guidelines**
 - Follow the existing code style and conventions
