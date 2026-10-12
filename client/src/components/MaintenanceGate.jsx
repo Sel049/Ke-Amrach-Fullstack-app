@@ -7,15 +7,6 @@ import Icon from './AppIcon.jsx';
 /**
  * MaintenanceGate - full-screen maintenance page shown to visitors and
  * non-admin users while `general.maintenanceMode` is on.
- *
- * Rules:
- *  - Admins always bypass the gate (so they can turn maintenance off).
- *  - The authentication routes stay reachable while maintenance is on, so a
- *    signed-out visitor can still sign in / register instead of getting a
- *    "Service temporarily unavailable" error. Once signed in, a non-admin
- *    lands on the maintenance page below.
- *  - The gate re-evaluates automatically thanks to the polling in
- *    PublicSettingsProvider - no manual refresh needed.
  */
 export const MAINTENANCE_EXEMPT_PATHS = [
   '/authentication-login-register',
