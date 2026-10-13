@@ -173,6 +173,19 @@ const useNewListingsSchema = await hasColumn('produce_listings', 'farmer_user_id
 
     await connection.commit();
 
+    // Build return and callback URLs
+    const frontendBase = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const backendBase = (process.env.BACKEND_URL || 'https://ke-amrach-fullstack-backend.onrender.com').replace(/\/+$/, '');
+    
+    // Return URL: where buyer is redirected in browser after payment
+    const returnUrl = `${frontendBase}/payments/verify?tx_ref=${txRef}&order_id=${orderId}`;
+
+    // Callback URL: server-to-server webhook. Chapa v2 strictly requires https://
+    let callbackUrl = `${backendBase}/api/payments/chapa/webhook`;
+    if (!callbackUrl.startsWith('https://')) {
+      callbackUrl = undefined; // Do not send if not https to prevent Chapa 400 error
+    }
+
     // Contact Chapa outside the transaction (network call)
     let chapaResult;
     try {
@@ -184,8 +197,8 @@ const useNewListingsSchema = await hasColumn('produce_listings', 'farmer_user_id
         lastName: (buyerName || '').split(' ').slice(1).join(' '),
         phone: buyerPhone,
         txRef,
-        callbackUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payments/verify?tx_ref=${txRef}&order_id=${orderId}`,
-        returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payments/verify?tx_ref=${txRef}&order_id=${orderId}`,
+        callbackUrl,
+        returnUrl,
       });
     } catch (chapaError) {
       await pool.query(`UPDATE payments SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [paymentId]);

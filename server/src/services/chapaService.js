@@ -45,8 +45,8 @@ export class ChapaService {
       first_name: firstName,
       last_name: lastName || '',
       tx_ref: txRef,
-      callback_url: callbackUrl,
       return_url: returnUrl,
+      ...(callbackUrl && callbackUrl.startsWith('https://') && { callback_url: callbackUrl }),
       ...(phone && { phone_number: phone }),
       ...(Object.keys(customization).length > 0 && { customization }),
     };
