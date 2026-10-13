@@ -38,16 +38,33 @@ export class ChapaService {
       return this._sandboxInitialize({ amount, currency, email, firstName, lastName, txRef, callbackUrl, returnUrl });
     }
 
+    // Clean and validate phone number to international Ethiopian format if present (+251...)
+    let formattedPhone = phone ? String(phone).trim() : '';
+    if (formattedPhone) {
+      if (formattedPhone.startsWith('09') || formattedPhone.startsWith('07')) {
+        formattedPhone = '+251' + formattedPhone.slice(1);
+      } else if (formattedPhone.startsWith('251')) {
+        formattedPhone = '+' + formattedPhone;
+      }
+    }
+
     const payload = {
       amount: parseFloat(amount),
       currency: currency || 'ETB',
-      email,
-      first_name: firstName,
-      last_name: lastName || '',
+      email: email || 'customer@ke-amrach.com',
+      first_name: firstName || 'Customer',
+      last_name: lastName || 'User',
       tx_ref: txRef,
+      merchant_reference: txRef,
+      customer: {
+        first_name: firstName || 'Customer',
+        last_name: lastName || 'User',
+        email: email || 'customer@ke-amrach.com',
+        ...(formattedPhone && { phone_number: formattedPhone }),
+      },
       ...(returnUrl && returnUrl.startsWith('https://') && { return_url: returnUrl }),
       ...(callbackUrl && callbackUrl.startsWith('https://') && { callback_url: callbackUrl }),
-      ...(phone && { phone_number: phone }),
+      ...(formattedPhone && { phone_number: formattedPhone }),
       ...(Object.keys(customization).length > 0 && { customization }),
     };
 
