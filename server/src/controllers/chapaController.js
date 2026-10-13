@@ -3,9 +3,10 @@ import { chapaService } from '../services/chapaService.js';
 import { createOrderNotification } from './notificationController.js';
 
 // Build a unique transaction reference used for both the payments row
-// and the Chapa tx_ref (Chapa requires <= 50 chars).
+// and the Chapa tx_ref / merchant_reference (Chapa v2 strictly requires <= 20 chars).
+// Example: "KA1728801234a1b2" (16 chars)
 const buildTxRef = () =>
-  `CHAPA-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  `KA${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 6)}`;
 
 // ────────────────────────────────────────────────────────────
 // initializeChapaPayment — creates order + pending payment row,
