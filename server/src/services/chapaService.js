@@ -45,13 +45,17 @@ export class ChapaService {
       first_name: firstName,
       last_name: lastName || '',
       tx_ref: txRef,
-      return_url: returnUrl,
+      ...(returnUrl && returnUrl.startsWith('https://') && { return_url: returnUrl }),
       ...(callbackUrl && callbackUrl.startsWith('https://') && { callback_url: callbackUrl }),
       ...(phone && { phone_number: phone }),
       ...(Object.keys(customization).length > 0 && { customization }),
     };
 
     const initUrl = `${this.baseUrl}/payments/hosted`;
+    console.log('Initiating Chapa payment with payload:', JSON.stringify({
+      ...payload,
+      email: payload.email ? '***' : undefined,
+    }));
 
     try {
       const response = await fetch(initUrl, {
