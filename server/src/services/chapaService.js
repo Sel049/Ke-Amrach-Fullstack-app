@@ -48,8 +48,11 @@ export class ChapaService {
       }
     }
 
+    // Chapa v2 hosted checkout processes amount in minor subunits (santim/cents)
+    const chapaAmount = Math.round(parseFloat(amount) * 100);
+
     const payload = {
-      amount: parseFloat(amount),
+      amount: chapaAmount,
       currency: currency || 'ETB',
       email: email || 'customer@ke-amrach.com',
       first_name: firstName || 'Customer',
@@ -132,12 +135,16 @@ export class ChapaService {
       const isSuccessful = ['success', 'completed'].includes(String(status).toLowerCase());
       const chapaReference = data.data?.reference || data.data?.chapa_reference || txRef;
 
+      const rawAmount = parseFloat(data.data?.amount || 0);
+      // In v2, if amount is returned in subunits, normalize back to major units
+      const normalizedAmount = rawAmount > 0 && Number.isInteger(rawAmount) ? rawAmount / 100 : rawAmount;
+
       return {
         success: isSuccessful,
         verified: isSuccessful,
         txRef,
         chapaReference,
-        amount: data.data?.amount || 0,
+        amount: normalizedAmount,
         currency: data.data?.currency || 'ETB',
         metadata: data.data?.metadata || {},
         raw: data,
