@@ -52,7 +52,6 @@ const AdminAnalytics = () => {
 
   // Normalize API chart buckets [{ label: 'YYYY-MM-DD' | 'YYYY-MM-01', value }] -> [{ month, value }]
   // Label density is chosen per period so the axis stays readable (7 days -> weekday,
-  // 30 days -> day-of-month, 90 days -> "12 Aug", 1 year -> month name).
   const normalizeChart = (chartRaw, period) => {
     if (!Array.isArray(chartRaw) || chartRaw.length === 0) return [];
     return chartRaw.map((item) => {
