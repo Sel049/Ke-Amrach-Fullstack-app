@@ -74,7 +74,7 @@ export const createReview = async (req, res) => {
       [userId, listingId, rating, comment || null]
     );
 
-    // Note: Skipping aggregate updates because schema has no avg_rating/review_count columns
+    
 
     res.status(201).json({
       id: result.insertId,
