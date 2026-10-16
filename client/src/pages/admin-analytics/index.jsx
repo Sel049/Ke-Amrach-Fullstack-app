@@ -69,9 +69,7 @@ const AdminAnalytics = () => {
     });
   };
 
-  // Keep charts readable: when a period produces many buckets (e.g. 30 daily
-  // bars for "Last 30 days"), group consecutive buckets so at most `maxBars`
-  // bars render. Values are summed; the label is the last bucket of the group.
+  // Keep charts readable: when a period produces many buckets 
   const compactChart = (chart, maxBars = 13) => {
     if (!Array.isArray(chart) || chart.length <= maxBars) return chart || [];
     const groupSize = Math.ceil(chart.length / maxBars);
