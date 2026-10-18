@@ -1,5 +1,4 @@
 -- Advanced Payment System Database Schema
--- Run this after the basic payment schema
 
 -- Payment Analytics Table
 CREATE TABLE IF NOT EXISTS payment_analytics (
