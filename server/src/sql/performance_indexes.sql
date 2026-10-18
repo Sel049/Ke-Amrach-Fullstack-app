@@ -1,6 +1,4 @@
 -- Performance optimization indexes for listings
--- Compatible with MySQL versions that do not support "CREATE INDEX IF NOT EXISTS"
--- and do not support index ordering like "created_at DESC" in the definition.
 
 -- Helper pattern (repeat per index):
 --   Checks information_schema for the index and only creates it if missing.
